@@ -1,0 +1,1 @@
+ALTER TABLE public.entregas ADD COLUMN forma_pagamento text DEFAULT null;
