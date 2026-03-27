@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Search, Pencil, Shield, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, Pencil, Shield, UserPlus, Eye, EyeOff, Key } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -123,6 +123,12 @@ export default function Usuarios() {
   const [permUser, setPermUser] = useState<Usuario | null>(null);
   const [permissoes, setPermissoes] = useState<Permissao[]>([]);
   const [permLoading, setPermLoading] = useState(false);
+  
+  // Change password dialog
+  const [passOpen, setPassOpen] = useState(false);
+  const [passUser, setPassUser] = useState<Usuario | null>(null);
+  const [newPass, setNewPass] = useState('');
+  const [passLoading, setPassLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     const [{ data: u }, { data: f }] = await Promise.all([
@@ -268,6 +274,26 @@ export default function Usuarios() {
     setPermLoading(false);
   };
 
+  const handleUpdatePass = async () => {
+    if (!passUser || !newPass) return;
+    if (newPass.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    setPassLoading(true);
+    const { error } = await supabase.rpc('admin_update_user_password', {
+      target_user_id: passUser.id,
+      new_password: newPass
+    });
+    if (error) toast.error('Erro ao atualizar: ' + error.message);
+    else {
+      toast.success('Senha atualizada com sucesso!');
+      setPassOpen(false);
+      setNewPass('');
+    }
+    setPassLoading(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -317,6 +343,9 @@ export default function Usuarios() {
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => openPermissions(u)} title="Permissões">
                             <Shield className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => { setPassUser(u); setPassOpen(true); }} title="Trocar Senha">
+                            <Key className="h-4 w-4" />
                           </Button>
                         </>
                       )}
@@ -505,6 +534,37 @@ export default function Usuarios() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Password Dialog */}
+      <Dialog open={passOpen} onOpenChange={setPassOpen}>
+        <DialogContent className="glass">
+          <DialogHeader><DialogTitle className="font-serif flex items-center gap-2"><Key className="h-5 w-5" /> Trocar Senha — {passUser?.email}</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Nova Senha</Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPass}
+                  onChange={e => setNewPass(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <Button onClick={handleUpdatePass} className="w-full" disabled={passLoading}>
+              {passLoading ? 'Atualizando...' : 'Confirmar Nova Senha'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
