@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings, Upload, Building2, Smartphone, Store } from 'lucide-react';
+import { Settings, Upload, Building2, Smartphone, Store, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Empresa {
   id: string;
@@ -37,6 +38,8 @@ export default function Configuracoes() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { updatePassword } = useAuth();
+  const [newPassword, setNewPassword] = useState('');
 
   const fetchEmpresa = async () => {
     const { data } = await supabase.from('empresas').select('*').limit(1).single();
@@ -112,6 +115,22 @@ export default function Configuracoes() {
     setSaving(false);
   };
 
+  const handleUpdatePassword = async () => {
+    if (newPassword.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+    setSaving(true);
+    const { error } = await updatePassword(newPassword);
+    if (error) {
+      toast.error('Erro ao atualizar senha: ' + error.message);
+    } else {
+      toast.success('Senha atualizada com sucesso!');
+      setNewPassword('');
+    }
+    setSaving(false);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -125,6 +144,7 @@ export default function Configuracoes() {
         <TabsList>
           <TabsTrigger value="empresa" className="gap-2"><Building2 className="h-4 w-4" /> Empresa</TabsTrigger>
           <TabsTrigger value="cardapio" className="gap-2"><Smartphone className="h-4 w-4" /> Cardápio Digital</TabsTrigger>
+          <TabsTrigger value="seguranca" className="gap-2"><Lock className="h-4 w-4" /> Segurança</TabsTrigger>
         </TabsList>
 
         <TabsContent value="empresa">
@@ -187,6 +207,28 @@ export default function Configuracoes() {
               <Button onClick={handleSaveCardapio} disabled={saving} className="w-full md:w-auto">
                 {saving ? 'Salvando...' : 'Salvar Cardápio Digital'}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="seguranca">
+          <Card className="glass">
+            <CardHeader><CardTitle className="font-serif flex items-center gap-2"><Lock className="h-5 w-5" /> Segurança da Conta</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="max-w-md space-y-4">
+                <div className="space-y-2">
+                  <Label>Nova Senha</Label>
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)} 
+                  />
+                  <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+                </div>
+                <Button onClick={handleUpdatePassword} disabled={saving}>
+                  {saving ? 'Atualizando...' : 'Atualizar Minha Senha'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
