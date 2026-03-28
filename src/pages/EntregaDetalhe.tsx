@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Search, Plus, Trash2, SendHorizonal, Clock, User, MapPin, ArrowLeft, DollarSign, Printer, History, Truck, ChefHat, ImageIcon, Receipt, CreditCard, Banknote, QrCode, FileText, MessageCircle, XCircle, Pencil
+  Search, Plus, Trash2, SendHorizonal, Clock, User, MapPin, ArrowLeft, DollarSign, Printer, History, Truck, ChefHat, ImageIcon, Receipt, CreditCard, Banknote, QrCode, FileText, MessageCircle, XCircle, Pencil, AlertTriangle
 } from 'lucide-react';
 import { EditarPrecoItem } from '@/components/EditarPrecoItem';
 import { EditarQtdItem } from '@/components/EditarQtdItem';
@@ -122,7 +122,7 @@ const formaIcons: Record<string, React.ReactNode> = {
 export default function EntregaDetalhe() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { empresa } = useEmpresa();
 
   const [entrega, setEntrega] = useState<EntregaData | null>(null);
@@ -150,6 +150,8 @@ export default function EntregaDetalhe() {
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelMotivo, setCancelMotivo] = useState('');
   const [cancelFuncId, setCancelFuncId] = useState('');
+  const [cancelRefNumber, setCancelRefNumber] = useState('');
+  const [confirmString, setConfirmString] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
 
@@ -334,6 +336,18 @@ export default function EntregaDetalhe() {
   const handleCancelarEntrega = async () => {
     if (!cancelMotivo.trim()) { toast.error('Informe o motivo do cancelamento'); return; }
     if (!cancelFuncId) { toast.error('Selecione o funcionário responsável'); return; }
+
+    const numConfirm = entrega?.numero ? String(entrega.numero) : '';
+    if (cancelRefNumber !== numConfirm) {
+      toast.error(`Para confirmar, digite o número ${numConfirm}`);
+      return;
+    }
+
+    if (confirmString !== 'EUCONFIRMO') {
+      toast.error('Para confirmar, digite EUCONFIRMO');
+      return;
+    }
+
     setCancelLoading(true);
     try {
       // Restore stock for items that were already deducted
@@ -342,6 +356,16 @@ export default function EntregaDetalhe() {
         activeItems.map(i => ({ produto_id: i.produto_id, quantidade: i.quantidade, status: i.status })),
         user?.id || null
       );
+
+      // If delivered, we need to adjust cash (delete payments)
+      if (entrega?.status === 'entregue') {
+        const { error: payError } = await supabase
+          .from('pagamentos')
+          .delete()
+          .eq('entrega_id', id!);
+        
+        if (payError) throw payError;
+      }
 
       await supabase.from('entregas').update({ status: 'cancelada' as any }).eq('id', id!);
       const funcNome = funcionarios.find(f => f.id === cancelFuncId)?.nome || '';
@@ -354,7 +378,9 @@ export default function EntregaDetalhe() {
       toast.success('Pedido cancelado');
       setCancelModal(false);
       fetchEntrega();
-    } catch {
+      fetchPagamentos();
+    } catch (error: any) {
+      console.error(error);
       toast.error('Erro ao cancelar pedido');
     } finally {
       setCancelLoading(false);
@@ -452,8 +478,8 @@ export default function EntregaDetalhe() {
               {statusConfig.nextLabel}
             </Button>
           )}
-          {!isReadOnly && (
-            <Button size="sm" variant="destructive" onClick={() => { setCancelMotivo(''); setCancelFuncId(''); setCancelModal(true); }}>
+          {(!isReadOnly || (entrega.status === 'entregue' && profile?.role === 'admin')) && (
+            <Button size="sm" variant="destructive" onClick={() => { setCancelMotivo(''); setCancelFuncId(''); setCancelRefNumber(''); setConfirmString(''); setCancelModal(true); }}>
               <XCircle className="h-4 w-4 mr-1" /> Cancelar
             </Button>
           )}
@@ -903,6 +929,11 @@ export default function EntregaDetalhe() {
             <DialogTitle className="font-serif text-destructive">Cancelar Pedido</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p><strong>Atenção:</strong> Esta operação não é reversível. O estoque será estornado e os pagamentos vinculados serão excluídos do caixa.</p>
+            </div>
+
             <div className="space-y-2">
               <Label>Motivo do cancelamento *</Label>
               <Textarea placeholder="Informe o motivo..." value={cancelMotivo} onChange={e => setCancelMotivo(e.target.value)} />
@@ -918,8 +949,22 @@ export default function EntregaDetalhe() {
                 </SelectContent>
               </Select>
             </div>
+
+            <Separator />
+
+            <div className="space-y-3 pt-2">
+              <div className="space-y-2">
+                <Label className="text-xs">Confirme o número do pedido (digite <strong>{entrega?.numero}</strong>):</Label>
+                <Input placeholder={String(entrega?.numero)} value={cancelRefNumber} onChange={e => setCancelRefNumber(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Digite <strong>EUCONFIRMO</strong> para finalizar:</Label>
+                <Input placeholder="EUCONFIRMO" value={confirmString} onChange={e => setConfirmString(e.target.value.toUpperCase())} />
+              </div>
+            </div>
+
             <Button variant="destructive" className="w-full" onClick={handleCancelarEntrega} disabled={cancelLoading}>
-              {cancelLoading ? 'Cancelando...' : 'Confirmar Cancelamento'}
+              {cancelLoading ? 'Cancelando...' : 'Confirmar Cancelamento Irreversível'}
             </Button>
           </div>
         </DialogContent>

@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle
+  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle, AlertTriangle
 } from 'lucide-react';
 import { EditarPrecoItem } from '@/components/EditarPrecoItem';
 import { EditarQtdItem } from '@/components/EditarQtdItem';
@@ -36,6 +36,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface ComandaData {
   id: string;
+  numero: number | null;
   mesa_id: string | null;
   cliente_id: string | null;
   funcionario_id: string | null;
@@ -122,7 +123,7 @@ const formaIcons: Record<string, React.ReactNode> = {
 export default function ComandaDetalhe() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { empresa } = useEmpresa();
 
   const [comanda, setComanda] = useState<ComandaData | null>(null);
@@ -151,6 +152,8 @@ export default function ComandaDetalhe() {
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelMotivo, setCancelMotivo] = useState('');
   const [cancelFuncId, setCancelFuncId] = useState('');
+  const [cancelRefNumber, setCancelRefNumber] = useState('');
+  const [confirmString, setConfirmString] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
 
@@ -308,6 +311,18 @@ export default function ComandaDetalhe() {
   const handleCancelarComanda = async () => {
     if (!cancelMotivo.trim()) { toast.error('Informe o motivo do cancelamento'); return; }
     if (!cancelFuncId) { toast.error('Selecione o funcionário responsável'); return; }
+
+    const numConfirm = comanda?.numero ? String(comanda.numero) : '';
+    if (cancelRefNumber !== numConfirm) {
+      toast.error(`Para confirmar, digite o número ${numConfirm}`);
+      return;
+    }
+
+    if (confirmString !== 'EUCONFIRMO') {
+      toast.error('Para confirmar, digite EUCONFIRMO');
+      return;
+    }
+
     setCancelLoading(true);
     try {
       // Restore stock for items that were already deducted
@@ -316,6 +331,16 @@ export default function ComandaDetalhe() {
         activeItems.map(i => ({ produto_id: i.produto_id, quantidade: i.quantidade, status: i.status })),
         user?.id || null
       );
+
+      // If closed, we need to adjust cash (delete payments)
+      if (comanda?.status === 'fechada') {
+        const { error: payError } = await supabase
+          .from('pagamentos')
+          .delete()
+          .eq('comanda_id', id!);
+        
+        if (payError) throw payError;
+      }
 
       await supabase.from('comandas').update({
         status: 'cancelada' as const,
@@ -337,7 +362,9 @@ export default function ComandaDetalhe() {
       toast.success('Comanda cancelada');
       setCancelModal(false);
       fetchComanda();
-    } catch {
+      fetchPagamentos();
+    } catch (error: any) {
+      console.error(error);
       toast.error('Erro ao cancelar comanda');
     } finally {
       setCancelLoading(false);
@@ -393,8 +420,8 @@ export default function ComandaDetalhe() {
           <Badge className={statusBadgeConfig[comanda.status || 'aberta']?.className}>
             {statusBadgeConfig[comanda.status || 'aberta']?.label}
           </Badge>
-          {comanda.status === 'aberta' && (
-            <Button size="sm" variant="destructive" onClick={() => { setCancelMotivo(''); setCancelFuncId(''); setCancelModal(true); }}>
+          {(comanda.status === 'aberta' || (comanda.status === 'fechada' && profile?.role === 'admin')) && (
+            <Button size="sm" variant="destructive" onClick={() => { setCancelMotivo(''); setCancelFuncId(''); setCancelRefNumber(''); setConfirmString(''); setCancelModal(true); }}>
               <XCircle className="h-4 w-4 mr-1" /> Cancelar
             </Button>
           )}
@@ -831,6 +858,11 @@ export default function ComandaDetalhe() {
             <DialogTitle className="font-serif text-destructive">Cancelar Comanda</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p><strong>Atenção:</strong> Esta operação não é reversível. O estoque será estornado e os pagamentos vinculados serão excluídos do caixa.</p>
+            </div>
+            
             <div className="space-y-2">
               <Label>Motivo do cancelamento *</Label>
               <Textarea placeholder="Informe o motivo..." value={cancelMotivo} onChange={e => setCancelMotivo(e.target.value)} />
@@ -846,8 +878,22 @@ export default function ComandaDetalhe() {
                 </SelectContent>
               </Select>
             </div>
+
+            <Separator />
+
+            <div className="space-y-3 pt-2">
+              <div className="space-y-2">
+                <Label className="text-xs">Confirme o número da comanda (digite <strong>{comanda?.numero}</strong>):</Label>
+                <Input placeholder={String(comanda?.numero)} value={cancelRefNumber} onChange={e => setCancelRefNumber(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Digite <strong>EUCONFIRMO</strong> para finalizar:</Label>
+                <Input placeholder="EUCONFIRMO" value={confirmString} onChange={e => setConfirmString(e.target.value.toUpperCase())} />
+              </div>
+            </div>
+
             <Button variant="destructive" className="w-full" onClick={handleCancelarComanda} disabled={cancelLoading}>
-              {cancelLoading ? 'Cancelando...' : 'Confirmar Cancelamento'}
+              {cancelLoading ? 'Cancelando...' : 'Confirmar Cancelamento Irreversível'}
             </Button>
           </div>
         </DialogContent>
