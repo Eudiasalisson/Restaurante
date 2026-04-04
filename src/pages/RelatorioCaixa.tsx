@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PdfPreviewModal } from '@/components/PdfPreviewModal';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Download, Landmark, ArrowDownCircle, ArrowUpCircle, Receipt, List, Eye, Info } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -25,7 +25,8 @@ const formaLabel: Record<string, string> = {
 };
 
 export default function RelatorioCaixa() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dateFrom, setDateFrom] = useState<Date>(new Date());
+  const [dateTo, setDateTo] = useState<Date>(new Date());
   const [caixas, setCaixas] = useState<any[]>([]);
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
   const [pagamentos, setPagamentos] = useState<any[]>([]);
@@ -40,8 +41,8 @@ export default function RelatorioCaixa() {
 
   const fetchData = async () => {
     setLoading(true);
-    const from = startOfDay(selectedDate).toISOString();
-    const to = endOfDay(selectedDate).toISOString();
+    const from = startOfDay(dateFrom).toISOString();
+    const to = endOfDay(dateTo).toISOString();
 
     const [cxRes, movRes, pagRes] = await Promise.all([
       supabase.from('caixas').select('*').gte('opened_at', from).lte('opened_at', to).order('opened_at'),
@@ -55,7 +56,7 @@ export default function RelatorioCaixa() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [selectedDate]);
+  useEffect(() => { fetchData(); }, [dateFrom, dateTo]);
 
   const fluxoDiario = useMemo(() => {
     return caixas.map(cx => {
@@ -88,19 +89,21 @@ export default function RelatorioCaixa() {
     return { formaMap, total };
   }, [pagamentos]);
 
-  const DatePicker = () => (
+  const DatePicker = ({ date, onChange, label }: { date: Date; onChange: (d: Date) => void; label: string }) => (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal text-xs")}>
+        <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal text-xs", !date && "text-muted-foreground")}>
           <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-          {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
+          {date ? format(date, "dd/MM/yyyy") : label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={selectedDate} onSelect={d => d && setSelectedDate(d)} initialFocus className="p-3 pointer-events-auto" />
+      <PopoverContent className="w-auto p-0" align="end">
+        <Calendar mode="single" selected={date} onSelect={d => d && onChange(d)} initialFocus className="p-3 pointer-events-auto" />
       </PopoverContent>
     </Popover>
   );
+
+  const periodoStr = `${format(dateFrom, 'dd/MM/yyyy')} até ${format(dateTo, 'dd/MM/yyyy')}`;
 
   // ===== PDF GENERATORS (A4) =====
   const generateFluxoPDF = (): Blob => {
@@ -113,7 +116,7 @@ export default function RelatorioCaixa() {
     doc.setFontSize(16); doc.setFont('helvetica', 'bold');
     doc.text('FLUXO DIÁRIO DE CAIXA', margin, y); y += 8;
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR }), margin, y); y += 10;
+    doc.text(periodoStr, margin, y); y += 10;
 
     fluxoDiario.forEach((cx, idx) => {
       if (y > 250) { doc.addPage(); y = 20; }
@@ -181,7 +184,7 @@ export default function RelatorioCaixa() {
     doc.setFontSize(16); doc.setFont('helvetica', 'bold');
     doc.text('RECEBIMENTOS DIÁRIOS — RESUMO', margin, y); y += 8;
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR }), margin, y); y += 12;
+    doc.text(periodoStr, margin, y); y += 12;
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
     doc.text('Forma de Pagamento', margin, y); doc.text('Qtd', 120, y, { align: 'center' }); doc.text('Total', w - margin, y, { align: 'right' }); y += 3;
@@ -218,7 +221,7 @@ export default function RelatorioCaixa() {
     doc.setFontSize(16); doc.setFont('helvetica', 'bold');
     doc.text('RECEBIMENTOS DIÁRIOS — DETALHADO', margin, y); y += 8;
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(`${format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR })} — ${pagamentos.length} registros`, margin, y); y += 12;
+    doc.text(`${periodoStr} — ${pagamentos.length} registros`, margin, y); y += 12;
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
     doc.text('Hora', margin, y); doc.text('Forma', 45, y); doc.text('Origem', 95, y); doc.text('Nº', 130, y); doc.text('Valor', w - margin, y, { align: 'right' }); y += 3;
@@ -246,13 +249,13 @@ export default function RelatorioCaixa() {
   // ===== PREVIEW BUILDERS =====
   const openFluxoPreview = () => {
     setPreviewTitle('Fluxo Diário de Caixa');
-    setPreviewFileName(`fluxo-diario-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
+    setPreviewFileName(`fluxo-diario-${format(dateFrom, 'yyyy-MM-dd')}-a-${format(dateTo, 'yyyy-MM-dd')}.pdf`);
     setPreviewBlob(generateFluxoPDF());
     setPreviewContent(
       <div className="space-y-6 text-sm">
         <div className="text-center border-b border-border pb-3">
           <h2 className="text-lg font-bold">FLUXO DIÁRIO DE CAIXA</h2>
-          <p className="text-muted-foreground">{format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR })}</p>
+          <p className="text-muted-foreground">{periodoStr}</p>
         </div>
         {fluxoDiario.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum caixa encontrado nesta data.</p>
@@ -330,13 +333,13 @@ export default function RelatorioCaixa() {
 
   const openResumoPreview = () => {
     setPreviewTitle('Recebimentos Diários — Resumo');
-    setPreviewFileName(`recebimentos-resumo-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
+    setPreviewFileName(`recebimentos-resumo-${format(dateFrom, 'yyyy-MM-dd')}-a-${format(dateTo, 'yyyy-MM-dd')}.pdf`);
     setPreviewBlob(generateResumoPDF());
     setPreviewContent(
       <div className="space-y-4 text-sm">
         <div className="text-center border-b border-border pb-3">
           <h2 className="text-lg font-bold">RECEBIMENTOS DIÁRIOS — RESUMO</h2>
-          <p className="text-muted-foreground">{format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR })}</p>
+          <p className="text-muted-foreground">{periodoStr}</p>
         </div>
         {pagamentos.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum recebimento nesta data.</p>
@@ -368,13 +371,13 @@ export default function RelatorioCaixa() {
 
   const openDetalhadoPreview = () => {
     setPreviewTitle('Recebimentos Diários — Detalhado');
-    setPreviewFileName(`recebimentos-detalhado-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
+    setPreviewFileName(`recebimentos-detalhado-${format(dateFrom, 'yyyy-MM-dd')}-a-${format(dateTo, 'yyyy-MM-dd')}.pdf`);
     setPreviewBlob(generateDetalhadoPDF());
     setPreviewContent(
       <div className="space-y-4 text-sm">
         <div className="text-center border-b border-border pb-3">
           <h2 className="text-lg font-bold">RECEBIMENTOS DIÁRIOS — DETALHADO</h2>
-          <p className="text-muted-foreground">{format(selectedDate, "dd/MM/yyyy (EEEE)", { locale: ptBR })} — {pagamentos.length} registros</p>
+          <p className="text-muted-foreground">{periodoStr} — {pagamentos.length} registros</p>
         </div>
         {pagamentos.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum recebimento nesta data.</p>
@@ -416,8 +419,13 @@ export default function RelatorioCaixa() {
           <p className="text-sm text-muted-foreground">Análise financeira diária</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Data:</span>
-          <DatePicker />
+          <DatePicker date={dateFrom} onChange={setDateFrom} label="De" />
+          <span className="text-muted-foreground text-xs">até</span>
+          <DatePicker date={dateTo} onChange={setDateTo} label="Até" />
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfDay(new Date())); setDateTo(new Date()); }} className="text-xs">Hoje</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(subDays(new Date(), 7)); setDateTo(new Date()); }} className="text-xs">7 dias</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfMonth(new Date())); setDateTo(new Date()); }} className="text-xs">Mês</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(new Date('2010-01-01')); setDateTo(new Date()); }} className="text-xs">Todo período</Button>
         </div>
       </div>
 
@@ -604,7 +612,7 @@ export default function RelatorioCaixa() {
 
             <Card className="glass">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-serif">Resumo de Recebimentos — {format(selectedDate, "dd/MM/yyyy")}</CardTitle>
+                <CardTitle className="text-base font-serif">Resumo de Recebimentos — {periodoStr}</CardTitle>
               </CardHeader>
               <CardContent>
                 {pagamentos.length === 0 ? (
@@ -659,7 +667,7 @@ export default function RelatorioCaixa() {
             <Card className="glass overflow-hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-serif">
-                  Recebimentos Detalhados — {format(selectedDate, "dd/MM/yyyy")}
+                  Recebimentos Detalhados — {periodoStr}
                   {pagamentos.length > 0 && <Badge variant="secondary" className="ml-2">{pagamentos.length} registros</Badge>}
                 </CardTitle>
               </CardHeader>

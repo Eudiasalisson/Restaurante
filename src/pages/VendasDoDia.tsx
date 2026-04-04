@@ -11,7 +11,7 @@ import { TablePagination } from '@/components/TablePagination';
 import { usePagination } from '@/hooks/usePagination';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, ShoppingBag, Info } from 'lucide-react';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 
 interface VendaDia {
   tipo: 'Comanda' | 'Delivery';
@@ -22,15 +22,16 @@ interface VendaDia {
 }
 
 export default function VendasDoDia() {
-  const [date, setDate] = useState<Date>(new Date());
+  const [dateFrom, setDateFrom] = useState<Date>(new Date());
+  const [dateTo, setDateTo] = useState<Date>(new Date());
   const [vendas, setVendas] = useState<VendaDia[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const from = startOfDay(date).toISOString();
-      const to = endOfDay(date).toISOString();
+      const from = startOfDay(dateFrom).toISOString();
+      const to = endOfDay(dateTo).toISOString();
 
       const [comandasRes, entregasRes] = await Promise.all([
         supabase.from('comandas')
@@ -99,7 +100,7 @@ export default function VendasDoDia() {
       setLoading(false);
     };
     fetchData();
-  }, [date]);
+  }, [dateFrom, dateTo]);
 
   const totalComandas = vendas.filter(v => v.tipo === 'Comanda').length;
   const totalEntregas = vendas.filter(v => v.tipo === 'Delivery').length;
@@ -108,6 +109,20 @@ export default function VendasDoDia() {
   const valorEntregas = useMemo(() => vendas.filter(v => v.tipo === 'Delivery').reduce((s, v) => s + v.valorTotal, 0), [vendas]);
 
   const pagination = usePagination(vendas, 20);
+
+  const DatePicker = ({ date, onChange, label }: { date: Date; onChange: (d: Date) => void; label: string }) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal text-xs", !date && "text-muted-foreground")}>
+          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+          {date ? format(date, "dd/MM/yyyy") : label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <Calendar mode="single" selected={date} onSelect={d => d && onChange(d)} initialFocus className="p-3 pointer-events-auto" />
+      </PopoverContent>
+    </Popover>
+  );
 
   return (
     <div className="space-y-6">
@@ -120,17 +135,15 @@ export default function VendasDoDia() {
             {vendas.length} pedidos — R$ {totalValor.toFixed(2)}
           </p>
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {format(date, "dd/MM/yyyy")}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <Calendar mode="single" selected={date} onSelect={d => d && setDate(d)} initialFocus className="p-3 pointer-events-auto" />
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-center gap-2">
+          <DatePicker date={dateFrom} onChange={setDateFrom} label="De" />
+          <span className="text-muted-foreground text-xs">até</span>
+          <DatePicker date={dateTo} onChange={setDateTo} label="Até" />
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfDay(new Date())); setDateTo(new Date()); }} className="text-xs">Hoje</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(subDays(new Date(), 7)); setDateTo(new Date()); }} className="text-xs">7 dias</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfMonth(new Date())); setDateTo(new Date()); }} className="text-xs">Mês</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(new Date('2010-01-01')); setDateTo(new Date()); }} className="text-xs">Todo período</Button>
+        </div>
       </div>
 
       <Alert className="border-primary/30 bg-primary/5">

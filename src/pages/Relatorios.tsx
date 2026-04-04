@@ -462,8 +462,10 @@ export default function Relatorios() {
           <DatePicker date={dateFrom} onChange={setDateFrom} label="De" />
           <span className="text-muted-foreground text-xs">até</span>
           <DatePicker date={dateTo} onChange={setDateTo} label="Até" />
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfDay(new Date())); setDateTo(new Date()); }} className="text-xs">Hoje</Button>
           <Button size="sm" variant="outline" onClick={() => { setDateFrom(subDays(new Date(), 7)); setDateTo(new Date()); }} className="text-xs">7 dias</Button>
           <Button size="sm" variant="outline" onClick={() => { setDateFrom(startOfMonth(new Date())); setDateTo(new Date()); }} className="text-xs">Mês</Button>
+          <Button size="sm" variant="outline" onClick={() => { setDateFrom(new Date('2010-01-01')); setDateTo(new Date()); }} className="text-xs">Todo período</Button>
         </div>
       </div>
 
