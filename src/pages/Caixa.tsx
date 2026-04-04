@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
-  Landmark, DoorOpen, DoorClosed, ArrowDownCircle, ArrowUpCircle, Clock, DollarSign, FileText, Calendar
+  Landmark, DoorOpen, DoorClosed, ArrowDownCircle, ArrowUpCircle, Clock, DollarSign, FileText, Calendar, CreditCard, Banknote, QrCode, User
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,6 +42,22 @@ interface Movimentacao {
   usuario_id: string | null;
   created_at: string;
 }
+
+const formaLabels: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  cartao_credito: 'Cartão Crédito',
+  cartao_debito: 'Cartão Débito',
+  pix: 'PIX',
+  outro: 'Outro',
+};
+
+const formaIcons: Record<string, React.ReactNode> = {
+  dinheiro: <Banknote className="h-3.5 w-3.5 text-success" />,
+  cartao_credito: <CreditCard className="h-3.5 w-3.5 text-accent" />,
+  cartao_debito: <CreditCard className="h-3.5 w-3.5 text-accent" />,
+  pix: <QrCode className="h-3.5 w-3.5 text-primary" />,
+  outro: <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />,
+};
 
 export default function Caixa() {
   const { user, profile } = useAuth();
@@ -113,8 +129,14 @@ export default function Caixa() {
 
   // Fetch pagamentos do período do caixa aberto
   const [totalVendas, setTotalVendas] = useState(0);
+  const [vendasPorForma, setVendasPorForma] = useState<Record<string, number>>({});
+
   useEffect(() => {
-    if (!caixaAberto) { setTotalVendas(0); return; }
+    if (!caixaAberto) { 
+      setTotalVendas(0); 
+      setVendasPorForma({});
+      return; 
+    }
     supabase
       .from('pagamentos')
       .select('valor, forma')
@@ -124,6 +146,12 @@ export default function Caixa() {
           // Exclude consumo_funcionario from caixa revenue
           const filtrado = data.filter((p: any) => p.forma !== 'consumo_funcionario');
           setTotalVendas(filtrado.reduce((s: number, p: any) => s + p.valor, 0));
+
+          const porForma = filtrado.reduce((acc: Record<string, number>, p: any) => {
+            acc[p.forma] = (acc[p.forma] || 0) + p.valor;
+            return acc;
+          }, {});
+          setVendasPorForma(porForma);
         }
       });
   }, [caixaAberto, movimentacoes]);
@@ -205,17 +233,39 @@ export default function Caixa() {
     fetchMovimentacoes(caixaAberto.id);
   };
 
+  const [detalheVendasForma, setDetalheVendasForma] = useState<Record<string, number>>({});
   const handleVerDetalhe = async (cx: CaixaData) => {
     setDetalheModal(cx);
-    const { data } = await supabase
+    const { data: movs } = await supabase
       .from('caixa_movimentacoes')
       .select('*')
       .eq('caixa_id', cx.id)
       .order('created_at');
-    setDetalheMovs((data as Movimentacao[]) || []);
+    setDetalheMovs((movs as Movimentacao[]) || []);
+
+    const query = supabase
+      .from('pagamentos')
+      .select('valor, forma')
+      .gte('created_at', cx.opened_at);
+    
+    if (cx.closed_at) {
+      query.lte('created_at', cx.closed_at);
+    }
+
+    const { data: pgs } = await query;
+    if (pgs) {
+      const filtrado = pgs.filter((p: any) => p.forma !== 'consumo_funcionario');
+      const porForma = filtrado.reduce((acc: Record<string, number>, p: any) => {
+        acc[p.forma] = (acc[p.forma] || 0) + p.valor;
+        return acc;
+      }, {});
+      setDetalheVendasForma(porForma);
+    } else {
+      setDetalheVendasForma({});
+    }
   };
 
-  const exportarPDF = (cx: CaixaData, movs: Movimentacao[]) => {
+  const exportarPDF = (cx: CaixaData, movs: Movimentacao[], vendasForma: Record<string, number> = {}) => {
     const doc = new jsPDF({ unit: 'mm', format: [80, 300] });
     const w = 80;
     let y = 8;
@@ -236,6 +286,20 @@ export default function Caixa() {
     sep();
 
     doc.text(`Valor abertura:`, 4, y); doc.text(`R$ ${cx.valor_abertura.toFixed(2)}`, w - 4, y, { align: 'right' }); y += lh;
+    sep();
+
+    const tVendas = Object.values(vendasForma).reduce((s, v) => s + v, 0);
+    if (tVendas > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('RECEBIMENTOS', 4, y); y += lh;
+      doc.setFont('helvetica', 'normal');
+      Object.entries(vendasForma).forEach(([forma, valor]) => {
+        doc.text(formaLabels[forma] || forma, 4, y);
+        doc.text(`R$ ${valor.toFixed(2)}`, w - 4, y, { align: 'right' }); y += lh;
+      });
+      doc.text(`Total vendas:`, 4, y); doc.text(`R$ ${tVendas.toFixed(2)}`, w - 4, y, { align: 'right' }); y += lh;
+      sep();
+    }
 
     const sangrias = movs.filter(m => m.tipo === 'sangria');
     const suprimentos = movs.filter(m => m.tipo === 'suprimento');
@@ -358,6 +422,31 @@ export default function Caixa() {
                 </div>
               </div>
 
+              {Object.keys(vendasPorForma).length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Separator className="flex-1 opacity-30" />
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase whitespace-nowrap">Recebimentos</span>
+                    <Separator className="flex-1 opacity-30" />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {Object.entries(vendasPorForma).map(([forma, valor]) => (
+                      <div key={forma} className="p-2.5 rounded-lg bg-secondary/30 border border-border/40 hover:border-border transition-colors">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1 rounded bg-secondary/50">
+                            {formaIcons[forma] || <DollarSign className="h-3 w-3" />}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground uppercase truncate font-medium">
+                            {formaLabels[forma] || forma}
+                          </p>
+                        </div>
+                        <p className="text-sm font-bold text-foreground">R$ {valor.toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
                 <Clock className="h-3.5 w-3.5" />
                 Aberto {format(new Date(caixaAberto.opened_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} — {formatDistanceToNow(new Date(caixaAberto.opened_at), { locale: ptBR })}
@@ -478,7 +567,24 @@ export default function Caixa() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 rounded-lg bg-secondary/50 space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Saldo esperado</span><span className="font-bold text-primary">R$ {saldoEsperado.toFixed(2)}</span></div>
+              <div className="flex justify-between border-b border-border/50 pb-1 mb-1">
+                <span className="text-muted-foreground uppercase text-[10px] font-bold">Resumo Esperado</span>
+                <span className="font-bold text-primary">R$ {saldoEsperado.toFixed(2)}</span>
+              </div>
+              <div className="space-y-0.5 mt-2">
+                <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Abertura</span><span>R$ {caixaAberto?.valor_abertura.toFixed(2)}</span></div>
+                {Object.entries(vendasPorForma).map(([forma, valor]) => (
+                  <div key={forma} className="flex justify-between text-[11px]">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      {formaIcons[forma] || <DollarSign className="h-2.5 w-2.5" />}
+                      {formaLabels[forma] || forma}
+                    </span>
+                    <span className="font-medium">R$ {valor.toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Suprimentos (+)</span><span className="text-success">R$ {totalSuprimentos.toFixed(2)}</span></div>
+                <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Sangrias (-)</span><span className="text-destructive">R$ {totalSangrias.toFixed(2)}</span></div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Valor em Caixa (contagem real) (R$)</Label>
@@ -560,6 +666,29 @@ export default function Caixa() {
                   <p className="font-medium">{detalheModal.valor_fechamento != null ? `R$ ${detalheModal.valor_fechamento.toFixed(2)}` : '-'}</p>
                 </div>
               </div>
+
+              {Object.keys(detalheVendasForma).length > 0 && (
+                <>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Recebimentos</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(detalheVendasForma).map(([forma, valor]) => (
+                      <div key={forma} className="flex justify-between p-2 rounded bg-secondary/30 text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1.5 truncate">
+                          {formaIcons[forma] || <DollarSign className="h-3 w-3" />}
+                          {formaLabels[forma] || forma}
+                        </span>
+                        <span className="font-medium whitespace-nowrap ml-1">R$ {valor.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="col-span-2 flex justify-between p-2 rounded bg-secondary/30 text-xs border-t border-border/50">
+                      <span className="font-bold">Total Vendas</span>
+                      <span className="font-bold text-success">R$ {Object.values(detalheVendasForma).reduce((s, v) => s + v, 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {detalheModal.observacao_abertura && <p className="text-muted-foreground">Obs abertura: {detalheModal.observacao_abertura}</p>}
               {detalheModal.observacao_fechamento && <p className="text-muted-foreground">Obs fechamento: {detalheModal.observacao_fechamento}</p>}
               {detalheMovs.length > 0 && (
@@ -582,7 +711,7 @@ export default function Caixa() {
                   </div>
                 </>
               )}
-              <Button className="w-full" variant="outline" onClick={() => exportarPDF(detalheModal, detalheMovs)}>
+              <Button className="w-full" variant="outline" onClick={() => exportarPDF(detalheModal, detalheMovs, detalheVendasForma)}>
                 <FileText className="h-4 w-4 mr-1" /> Exportar PDF
               </Button>
             </div>
