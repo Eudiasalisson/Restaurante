@@ -61,6 +61,7 @@ interface PagamentoModalProps {
   onUpdated: () => void;
   isEntrega?: boolean;
   entregaId?: string;
+  clienteId?: string | null;
 }
 
 export function PagamentoModal({
@@ -73,6 +74,7 @@ export function PagamentoModal({
   onUpdated,
   isEntrega,
   entregaId,
+  clienteId,
 }: PagamentoModalProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -245,6 +247,30 @@ export function PagamentoModal({
         });
         toast.success('Pedido delivery finalizado!');
       } else {
+        // --- LOGIC FOR CONSUMIDOR FINAL ---
+        let finalClienteId = clienteId;
+
+        if (!finalClienteId) {
+          // 1. Tentar encontrar "Consumidor Final"
+          const { data: existing } = await supabase
+            .from('clientes')
+            .select('id')
+            .ilike('nome', 'Consumidor Final')
+            .maybeSingle();
+
+          if (existing) {
+            finalClienteId = existing.id;
+          } else {
+            // 2. Criar se não existir
+            const { data: created } = await supabase
+              .from('clientes')
+              .insert({ nome: 'Consumidor Final' })
+              .select('id')
+              .single();
+            if (created) finalClienteId = created.id;
+          }
+        }
+
         const { data: comandaItens } = await supabase
           .from('comanda_itens')
           .select('produto_id, quantidade, status')
@@ -263,6 +289,7 @@ export function PagamentoModal({
           taxa_servico_ativa: taxaAtiva,
           desconto,
           acrescimo,
+          cliente_id: finalClienteId, // Garantindo o vínculo aqui
         }).eq('id', comandaId);
 
         if (mesaId) {
@@ -272,7 +299,7 @@ export function PagamentoModal({
         await supabase.from('comanda_historico').insert({
           comanda_id: comandaId,
           acao: 'fechamento',
-          descricao: `Comanda fechada. Total: R$ ${total.toFixed(2)}`,
+          descricao: `Comanda fechada. Total: R$ ${total.toFixed(2)}${!clienteId ? ' (Vínculado ao Consumidor Final)' : ''}`,
           usuario_id: user?.id || null,
         });
         toast.success('Comanda fechada com sucesso!');

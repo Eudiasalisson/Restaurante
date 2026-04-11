@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings, Upload, Building2, Smartphone, Store, Lock } from 'lucide-react';
+import { Settings, Upload, Building2, Smartphone, Store, Lock, Wrench, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -131,6 +131,46 @@ export default function Configuracoes() {
     setSaving(false);
   };
 
+  const handleMaintenance = async () => {
+    if (!confirm('Esta ação vinculará todas as comandas e entregas fechadas sem cliente ao cadastro "Consumidor Final". Deseja continuar?')) return;
+    
+    setSaving(true);
+    try {
+      let consumidorId = '';
+      const { data: existing } = await supabase.from('clientes').select('id').ilike('nome', 'Consumidor Final').maybeSingle();
+      
+      if (existing) {
+        consumidorId = existing.id;
+      } else {
+        const { data: created } = await supabase.from('clientes').insert({ nome: 'Consumidor Final' }).select('id').single();
+        if (created) consumidorId = created.id;
+      }
+
+      if (!consumidorId) throw new Error('Erro ao identificar Consumidor Final');
+
+      const { data: comRes } = await supabase
+        .from('comandas')
+        .update({ cliente_id: consumidorId })
+        .eq('status', 'fechada')
+        .is('cliente_id', null)
+        .select('id');
+
+      const { data: entRes } = await supabase
+        .from('entregas')
+        .update({ cliente_id: consumidorId })
+        .eq('status', 'entregue')
+        .is('cliente_id', null)
+        .select('id');
+
+      toast.success('Manutenção concluída!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro na manutenção');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -145,6 +185,7 @@ export default function Configuracoes() {
           <TabsTrigger value="empresa" className="gap-2"><Building2 className="h-4 w-4" /> Empresa</TabsTrigger>
           <TabsTrigger value="cardapio" className="gap-2"><Smartphone className="h-4 w-4" /> Cardápio Digital</TabsTrigger>
           <TabsTrigger value="seguranca" className="gap-2"><Lock className="h-4 w-4" /> Segurança</TabsTrigger>
+          <TabsTrigger value="manutencao" className="gap-2"><Wrench className="h-4 w-4" /> Manutenção</TabsTrigger>
         </TabsList>
 
         <TabsContent value="empresa">
@@ -227,6 +268,23 @@ export default function Configuracoes() {
                 </div>
                 <Button onClick={handleUpdatePassword} disabled={saving}>
                   {saving ? 'Atualizando...' : 'Atualizar Minha Senha'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="manutencao">
+          <Card className="glass">
+            <CardHeader><CardTitle className="font-serif flex items-center gap-2"><Database className="h-5 w-5 text-accent" /> Manutenção do Banco</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-lg bg-accent/10 border border-accent/20 space-y-3">
+                <h3 className="font-medium text-foreground">Vincular Vendas Órfãs</h3>
+                <p className="text-sm text-muted-foreground">
+                  Esta ferramenta busca todas as vendas (comandas e entregas) que foram finalizadas sem um cliente informado e as associa ao cliente "Consumidor Final". 
+                  Isso garante que os relatórios por cliente fiquem consistentes com o faturamento total.
+                </p>
+                <Button onClick={handleMaintenance} disabled={saving} variant="outline" className="border-accent/40 hover:bg-accent/10">
+                  <Database className="h-4 w-4 mr-2" /> Corrigir Vendas Sem Cliente
                 </Button>
               </div>
             </CardContent>

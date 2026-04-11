@@ -89,40 +89,48 @@ export function AbrirMesaModal({ open, onOpenChange, mesa, onSuccess }: AbrirMes
   }, [clienteSearch, searchClientes]);
 
   const handleCriarCliente = async () => {
+    if (loading) return;
     if (!novoCliente.nome.trim()) { toast.error('Nome é obrigatório'); return; }
 
-    // Verificar duplicidade de nome
-    const { data: existingNome } = await supabase
-      .from('clientes').select('id').ilike('nome', novoCliente.nome.trim()).limit(1);
-    if (existingNome && existingNome.length > 0) {
-      toast.error('Já existe um cliente com este nome');
-      return;
-    }
+    setLoading(true);
+    try {
+      // Verificar duplicidade de nome
+      const { data: existingNome } = await supabase
+        .from('clientes').select('id').ilike('nome', novoCliente.nome.trim()).limit(1);
+      if (existingNome && existingNome.length > 0) {
+        toast.error('Já existe um cliente com este nome');
+        return;
+      }
 
-    // Verificar duplicidade de telefone
-    if (novoCliente.telefone.trim()) {
-      const phoneDigits = novoCliente.telefone.replace(/\D/g, '');
-      if (phoneDigits) {
-        const { data: allClientes } = await supabase.from('clientes').select('id, telefone');
-        const telDuplicate = allClientes?.find(c => c.telefone?.replace(/\D/g, '') === phoneDigits);
-        if (telDuplicate) {
-          toast.error('Já existe um cliente com este telefone');
-          return;
+      // Verificar duplicidade de telefone
+      if (novoCliente.telefone.trim()) {
+        const phoneDigits = novoCliente.telefone.replace(/\D/g, '');
+        if (phoneDigits) {
+          const { data: allClientes } = await supabase.from('clientes').select('id, telefone');
+          const telDuplicate = allClientes?.find(c => c.telefone?.replace(/\D/g, '') === phoneDigits);
+          if (telDuplicate) {
+            toast.error('Já existe um cliente com este telefone');
+            return;
+          }
         }
       }
-    }
 
-    const { data, error } = await supabase.from('clientes').insert({
-      nome: novoCliente.nome.trim(),
-      telefone: novoCliente.telefone || null,
-      cpf: novoCliente.cpf || null,
-      email: novoCliente.email || null,
-    }).select('id, nome, cpf, telefone').single();
-    if (error) { toast.error('Erro ao criar cliente'); return; }
-    toast.success('Cliente criado!');
-    setSelectedCliente(data);
-    setShowNovoCliente(false);
-    setClienteSearch('');
+      const { data, error } = await supabase.from('clientes').insert({
+        nome: novoCliente.nome.trim(),
+        telefone: novoCliente.telefone || null,
+        cpf: novoCliente.cpf || null,
+        email: novoCliente.email || null,
+      }).select('id, nome, cpf, telefone').single();
+      if (error) { toast.error('Erro ao criar cliente'); return; }
+      toast.success('Cliente criado!');
+      setSelectedCliente(data);
+      setShowNovoCliente(false);
+      setClienteSearch('');
+    } catch {
+      toast.error('Erro ao processar cadastro');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAbrirMesa = async () => {

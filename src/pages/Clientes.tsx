@@ -61,6 +61,8 @@ export default function Clientes() {
 
   const [enderecosMap, setEnderecosMap] = useState<Record<string, Endereco | null>>({});
 
+  const [saving, setSaving] = useState(false);
+
   const fetchClientes = async () => {
     const { data } = await supabase.from('clientes').select('*').order('nome');
     if (data) {
@@ -91,6 +93,7 @@ export default function Clientes() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
     if (!form.nome.trim()) { toast.error('Nome é obrigatório'); return; }
     if (!form.telefone.trim()) { toast.error('Telefone é obrigatório'); return; }
     

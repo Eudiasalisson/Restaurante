@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle, AlertTriangle
+  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle, AlertTriangle, UserPlus, Pencil
 } from 'lucide-react';
 import { EditarPrecoItem } from '@/components/EditarPrecoItem';
 import { EditarQtdItem } from '@/components/EditarQtdItem';
@@ -163,6 +163,14 @@ export default function ComandaDetalhe() {
   const [removeMotivo, setRemoveMotivo] = useState('');
   const [removeLoading, setRemoveLoading] = useState(false);
 
+  // Cliente update
+  const [clienteModal, setClienteModal] = useState(false);
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [clienteResults, setClienteResults] = useState<any[]>([]);
+  const [clienteLoading, setClienteLoading] = useState(false);
+  const [showNovoCliente, setShowNovoCliente] = useState(false);
+  const [novoCliente, setNovoCliente] = useState({ nome: '', telefone: '', cpf: '', email: '' });
+
   const fetchComanda = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase
@@ -204,6 +212,69 @@ export default function ComandaDetalhe() {
       .order('created_at');
     if (data) setPagamentos(data as Pagamento[]);
   }, [id]);
+
+  const handleUpdateCliente = async (clienteId: string | null) => {
+    if (!id) return;
+    setClienteLoading(true);
+    try {
+      const { error } = await supabase.from('comandas').update({ cliente_id: clienteId }).eq('id', id);
+      if (error) throw error;
+      
+      const newClienteNome = clienteResults.find(c => c.id === clienteId)?.nome || (clienteId === null ? 'Removido' : 'Novo');
+      await supabase.from('comanda_historico').insert({
+        comanda_id: id,
+        acao: 'editar_comanda',
+        descricao: `Cliente alterado para: ${newClienteNome}`,
+        usuario_id: user?.id || null,
+      });
+
+      toast.success('Cliente atualizado!');
+      setClienteModal(false);
+      fetchComanda();
+    } catch {
+      toast.error('Erro ao atualizar cliente');
+    } finally {
+      setClienteLoading(false);
+    }
+  };
+
+  const searchClientes = useCallback(async (query: string) => {
+    if (query.length < 2) { setClienteResults([]); return; }
+    const { data } = await supabase.from('clientes')
+      .select('id, nome, cpf, telefone')
+      .or(`nome.ilike.%${query}%,cpf.ilike.%${query}%,telefone.ilike.%${query}%`)
+      .limit(8);
+    if (data) setClienteResults(data);
+  }, []);
+
+  useEffect(() => {
+    if (!clienteModal) return;
+    const timeout = setTimeout(() => searchClientes(clienteSearch), 300);
+    return () => clearTimeout(timeout);
+  }, [clienteSearch, searchClientes, clienteModal]);
+
+  const handleCriarCliente = async () => {
+    if (clienteLoading) return;
+    if (!novoCliente.nome.trim()) { toast.error('Nome é obrigatório'); return; }
+    setClienteLoading(true);
+    try {
+      const { data, error } = await supabase.from('clientes').insert({
+        nome: novoCliente.nome.trim(),
+        telefone: novoCliente.telefone || null,
+        cpf: novoCliente.cpf || null,
+        email: novoCliente.email || null,
+      }).select('id, nome').single();
+      
+      if (error) throw error;
+      await handleUpdateCliente(data.id);
+      setShowNovoCliente(false);
+      setNovoCliente({ nome: '', telefone: '', cpf: '', email: '' });
+    } catch {
+      toast.error('Erro ao criar cliente');
+    } finally {
+      setClienteLoading(false);
+    }
+  };
 
   const fetchProdutos = useCallback(async () => {
     const { data: prods } = await supabase.from('produtos').select('id, nome, preco_venda, preco_promocional, promocao_ativa, imagem_url, categoria_id, enviar_cozinha, categorias(nome)').eq('ativo', true).order('nome');
@@ -430,13 +501,14 @@ export default function ComandaDetalhe() {
 
       {/* Info Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="glass">
+        <Card className="glass cursor-pointer hover:border-primary/40 transition-colors" onClick={() => !isReadOnly && setClienteModal(true)}>
           <CardContent className="pt-4 flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-[10px] text-muted-foreground uppercase">Cliente</p>
               <p className="text-sm font-medium text-foreground truncate">{comanda.clientes?.nome || 'Não informado'}</p>
             </div>
+            {!isReadOnly && <Pencil className="h-3 w-3 text-muted-foreground" />}
           </CardContent>
         </Card>
         <Card className="glass">
@@ -933,6 +1005,7 @@ export default function ComandaDetalhe() {
         desconto={comanda.desconto ?? 0}
         acrescimo={comanda.acrescimo ?? 0}
         onUpdated={() => { fetchComanda(); fetchPagamentos(); }}
+        clienteId={comanda.cliente_id}
       />
       <PdfPreviewModal
         open={!!pdfBlob}
@@ -970,6 +1043,73 @@ export default function ComandaDetalhe() {
           />
         )}
       </PdfPreviewModal>
+
+      <Dialog open={clienteModal} onOpenChange={setClienteModal}>
+        <DialogContent className="glass max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Alterar Cliente</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {!showNovoCliente ? (
+              <>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Buscar por nome, CPF ou telefone..."
+                    value={clienteSearch}
+                    onChange={e => setClienteSearch(e.target.value)}
+                  />
+                </div>
+
+                {clienteResults.length > 0 && (
+                  <div className="border border-border rounded-md max-h-48 overflow-auto">
+                    {clienteResults.map(c => (
+                      <button
+                        key={c.id}
+                        className="w-full text-left px-3 py-2.5 hover:bg-secondary text-sm transition-colors border-b border-border last:border-0"
+                        onClick={() => handleUpdateCliente(c.id)}
+                      >
+                        <span className="font-medium text-foreground block">{c.nome}</span>
+                        {(c.telefone || c.cpf) && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.telefone}{c.telefone && c.cpf ? ' • ' : ''}{c.cpf}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => handleUpdateCliente(null)}>
+                    <Trash2 className="h-4 w-4 mr-1" /> Remover Cliente
+                  </Button>
+                  <Button className="flex-1" onClick={() => setShowNovoCliente(true)}>
+                    <UserPlus className="h-4 w-4 mr-1" /> Novo Cliente
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <Input placeholder="Nome *" value={novoCliente.nome} onChange={e => setNovoCliente(f => ({ ...f, nome: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Telefone" value={novoCliente.telefone} onChange={e => setNovoCliente(f => ({ ...f, telefone: e.target.value }))} />
+                  <Input placeholder="CPF" value={novoCliente.cpf} onChange={e => setNovoCliente(f => ({ ...f, cpf: e.target.value }))} />
+                </div>
+                <Input placeholder="E-mail" value={novoCliente.email} onChange={e => setNovoCliente(f => ({ ...f, email: e.target.value }))} />
+                <div className="flex gap-2 pt-2">
+                  <Button variant="ghost" className="flex-1" onClick={() => setShowNovoCliente(false)}>Cancelar</Button>
+                  <Button className="flex-1" onClick={handleCriarCliente} disabled={clienteLoading}>
+                    {clienteLoading ? 'Salvando...' : 'Cadastrar e Selecionar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
