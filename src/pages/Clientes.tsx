@@ -61,8 +61,6 @@ export default function Clientes() {
 
   const [enderecosMap, setEnderecosMap] = useState<Record<string, Endereco | null>>({});
 
-  const [saving, setSaving] = useState(false);
-
   const fetchClientes = async () => {
     const { data } = await supabase.from('clientes').select('*').order('nome');
     if (data) {
