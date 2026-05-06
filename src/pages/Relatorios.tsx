@@ -6,19 +6,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PdfPreviewModal } from '@/components/PdfPreviewModal';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfDay, startOfDay, subDays, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Eye, BarChart3, PieChart as PieChartIcon, TrendingUp, Truck, Grid3X3, Package, Users, ArrowUpDown, Info } from 'lucide-react';
+import { CalendarIcon, Eye, BarChart3, PieChart as PieChartIcon, TrendingUp, Truck, Grid3X3, Package, Users, ArrowUpDown, Info, ChevronsUpDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid
 } from 'recharts';
 import jsPDF from 'jspdf';
 
-const COLORS = ['hsl(0, 72%, 51%)', 'hsl(43, 74%, 49%)', 'hsl(142, 71%, 45%)', 'hsl(220, 70%, 50%)', 'hsl(280, 60%, 55%)'];
+const COLORS = ['hsl(220, 70%, 55%)', 'hsl(142, 71%, 45%)', 'hsl(43, 90%, 50%)', 'hsl(280, 60%, 60%)', 'hsl(0, 72%, 55%)'];
 
 export default function Relatorios() {
   const [dateFrom, setDateFrom] = useState<Date>(new Date());
@@ -34,6 +35,8 @@ export default function Relatorios() {
   const [selectedProduto, setSelectedProduto] = useState<string>('');
   const [produtoHistorico, setProdutoHistorico] = useState<any[]>([]);
   const [loadingProduto, setLoadingProduto] = useState(false);
+  const [produtoComboOpen, setProdutoComboOpen] = useState(false);
+  const [produtoSearch, setProdutoSearch] = useState('');
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [selectedCliente, setSelectedCliente] = useState<string>('');
@@ -477,13 +480,13 @@ export default function Relatorios() {
         <Tabs defaultValue="vendas" className="w-full">
           <TabsList className="w-full flex-wrap h-auto gap-1">
             <TabsTrigger value="vendas" className="text-xs"><TrendingUp className="h-3.5 w-3.5 mr-1" />Vendas</TabsTrigger>
-            <TabsTrigger value="produtos" className="text-xs"><BarChart3 className="h-3.5 w-3.5 mr-1" />Produtos</TabsTrigger>
+            <TabsTrigger value="saida" className="text-xs"><ArrowUpDown className="h-3.5 w-3.5 mr-1" />Saída Produtos</TabsTrigger>
             <TabsTrigger value="pagamentos" className="text-xs"><PieChartIcon className="h-3.5 w-3.5 mr-1" />Pagamentos</TabsTrigger>
             <TabsTrigger value="mesas" className="text-xs"><Grid3X3 className="h-3.5 w-3.5 mr-1" />Mesas</TabsTrigger>
             <TabsTrigger value="delivery" className="text-xs"><Truck className="h-3.5 w-3.5 mr-1" />Delivery</TabsTrigger>
             <TabsTrigger value="hist-produto" className="text-xs"><Package className="h-3.5 w-3.5 mr-1" />Hist. Produto</TabsTrigger>
             <TabsTrigger value="hist-cliente" className="text-xs"><Users className="h-3.5 w-3.5 mr-1" />Hist. Cliente</TabsTrigger>
-            <TabsTrigger value="saida" className="text-xs"><ArrowUpDown className="h-3.5 w-3.5 mr-1" />Saída Produtos</TabsTrigger>
+            <TabsTrigger value="produtos" className="text-xs"><BarChart3 className="h-3.5 w-3.5 mr-1" />Produtos</TabsTrigger>
           </TabsList>
 
           {/* VENDAS */}
@@ -676,10 +679,36 @@ export default function Relatorios() {
               </AlertDescription>
             </Alert>
             <div className="flex flex-wrap items-center gap-3">
-              <Select value={selectedProduto} onValueChange={setSelectedProduto}>
-                <SelectTrigger className="w-[280px]"><SelectValue placeholder="Selecione um produto..." /></SelectTrigger>
-                <SelectContent>{produtos.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
-              </Select>
+              <Popover open={produtoComboOpen} onOpenChange={open => { setProdutoComboOpen(open); if (!open) setProdutoSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[280px] justify-between font-normal" role="combobox">
+                    <span className="truncate">{selectedProduto ? produtos.find(p => p.id === selectedProduto)?.nome : 'Selecione um produto...'}</span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-2" align="start">
+                  <input
+                    placeholder="Pesquisar produto..."
+                    value={produtoSearch}
+                    onChange={e => setProdutoSearch(e.target.value)}
+                    className="w-full mb-2 h-8 px-3 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    autoFocus
+                  />
+                  <ScrollArea className="max-h-56">
+                    {produtos.filter(p => p.nome.toLowerCase().includes(produtoSearch.toLowerCase())).length === 0 ? (
+                      <p className="text-center text-sm text-muted-foreground py-2">Nenhum produto encontrado.</p>
+                    ) : produtos.filter(p => p.nome.toLowerCase().includes(produtoSearch.toLowerCase())).map(p => (
+                      <div
+                        key={p.id}
+                        className={cn('cursor-pointer px-2 py-1.5 text-sm rounded hover:bg-accent', p.id === selectedProduto && 'bg-accent')}
+                        onClick={() => { setSelectedProduto(p.id); setProdutoComboOpen(false); setProdutoSearch(''); }}
+                      >
+                        {p.nome}
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
               {selectedProduto && produtoHistorico.length > 0 && (
                 <Button size="sm" variant="outline" onClick={openProdutoHistPreview}><Eye className="h-4 w-4 mr-1" /> Visualizar / PDF</Button>
               )}

@@ -33,6 +33,7 @@ import Inventario from "./pages/Inventario";
 import Cardapio from "./pages/Cardapio";
 import ClientesDoDia from "./pages/ClientesDoDia";
 import RankingClientes from "./pages/RankingClientes";
+import Sorteio from "./pages/Sorteio";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -95,6 +96,7 @@ function AppRoutes() {
       <Route path="/vendas-do-dia" element={<AdminRoute><VendasDoDia /></AdminRoute>} />
       <Route path="/clientes-do-dia" element={<AdminRoute><ClientesDoDia /></AdminRoute>} />
       <Route path="/ranking-clientes" element={<AdminRoute><RankingClientes /></AdminRoute>} />
+      <Route path="/sorteio" element={<AdminRoute><Sorteio /></AdminRoute>} />
       <Route path="/caixa" element={<ProtectedRoute><CaixaPage /></ProtectedRoute>} />
       <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
       <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />

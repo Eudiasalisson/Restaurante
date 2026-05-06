@@ -6,14 +6,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PdfPreviewModal } from '@/components/PdfPreviewModal';
 import { TablePagination } from '@/components/TablePagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { usePagination } from '@/hooks/usePagination';
-import { format, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
+import { format, startOfWeek, startOfMonth, startOfYear, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Eye, Trophy, Medal, Award, Users, Info } from 'lucide-react';
+import { Eye, Trophy, Medal, Award, Users, Info, CalendarIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 
-type PeriodFilter = 'all' | 'week' | 'month' | 'year';
+type PeriodFilter = 'all' | 'week' | 'month' | 'year' | 'custom';
 
 interface ClienteRanking {
   id: string;
@@ -29,6 +32,8 @@ export default function RankingClientes() {
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState<ClienteRanking[]>([]);
   const [period, setPeriod] = useState<PeriodFilter>('all');
+  const [customDateFrom, setCustomDateFrom] = useState<Date>(new Date());
+  const [customDateTo, setCustomDateTo] = useState<Date>(new Date());
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
@@ -41,18 +46,24 @@ export default function RankingClientes() {
       case 'week': return 'Semana Atual';
       case 'month': return 'Mês Atual';
       case 'year': return 'Ano Atual';
+      case 'custom': return `${format(customDateFrom, 'dd/MM/yyyy')} a ${format(customDateTo, 'dd/MM/yyyy')}`;
       default: return 'Todo Período';
     }
-  }, [period]);
+  }, [period, customDateFrom, customDateTo]);
 
   const fetchData = async () => {
     setLoading(true);
 
     let fromDate: string | null = null;
+    let toDate: string | null = null;
     const now = new Date();
     if (period === 'week') fromDate = startOfWeek(now, { weekStartsOn: 1 }).toISOString();
     else if (period === 'month') fromDate = startOfMonth(now).toISOString();
     else if (period === 'year') fromDate = startOfYear(now).toISOString();
+    else if (period === 'custom') {
+      fromDate = startOfDay(customDateFrom).toISOString();
+      toDate = endOfDay(customDateTo).toISOString();
+    }
 
     // Fetch clients
     const { data: clientes } = await supabase.from('clientes').select('id, nome');
@@ -61,11 +72,13 @@ export default function RankingClientes() {
     // Fetch comandas with items
     let comandasQuery = supabase.from('comandas').select('id, cliente_id, status').not('cliente_id', 'is', null);
     if (fromDate) comandasQuery = comandasQuery.gte('opened_at', fromDate);
+    if (toDate) comandasQuery = comandasQuery.lte('opened_at', toDate);
     const { data: comandas } = await comandasQuery;
 
     // Fetch entregas with items
     let entregasQuery = supabase.from('entregas').select('id, cliente_id, status').not('cliente_id', 'is', null);
     if (fromDate) entregasQuery = entregasQuery.gte('opened_at', fromDate);
+    if (toDate) entregasQuery = entregasQuery.lte('opened_at', toDate);
     const { data: entregas } = await entregasQuery;
 
     // Get all comanda IDs and entrega IDs
@@ -143,7 +156,7 @@ export default function RankingClientes() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [period]);
+  useEffect(() => { fetchData(); }, [period, customDateFrom, customDateTo]);
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
@@ -252,12 +265,39 @@ export default function RankingClientes() {
           <h1 className="text-2xl font-serif text-foreground">Ranking de Clientes</h1>
           <p className="text-sm text-muted-foreground">Clientes ordenados por valor de consumo</p>
         </div>
-        <div className="flex items-center gap-2">
-          {(['all', 'week', 'month', 'year'] as PeriodFilter[]).map(p => (
+        <div className="flex flex-wrap items-center gap-2">
+          {(['all', 'week', 'month', 'year', 'custom'] as PeriodFilter[]).map(p => (
             <Button key={p} size="sm" variant={period === p ? 'default' : 'outline'} onClick={() => setPeriod(p)} className="text-xs">
-              {p === 'all' ? 'Todo Período' : p === 'week' ? 'Semana' : p === 'month' ? 'Mês' : 'Ano'}
+              {p === 'all' ? 'Todo Período' : p === 'week' ? 'Semana' : p === 'month' ? 'Mês' : p === 'year' ? 'Ano' : 'Personalizado'}
             </Button>
           ))}
+          {period === 'custom' && (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('text-xs w-[120px] justify-start font-normal', !customDateFrom && 'text-muted-foreground')}>
+                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                    {format(customDateFrom, 'dd/MM/yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateFrom} onSelect={d => d && setCustomDateFrom(d)} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <span className="text-muted-foreground text-xs">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('text-xs w-[120px] justify-start font-normal', !customDateTo && 'text-muted-foreground')}>
+                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                    {format(customDateTo, 'dd/MM/yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateTo} onSelect={d => d && setCustomDateTo(d)} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
         </div>
       </div>
 

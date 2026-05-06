@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle, AlertTriangle, UserPlus, Pencil
+  Search, Plus, Trash2, SendHorizonal, Clock, Users, User, ChefHat, ArrowLeft, DollarSign, Printer, History, ImageIcon, Receipt, CreditCard, Banknote, QrCode, XCircle, AlertTriangle, UserPlus, Pencil, ArrowLeftRight
 } from 'lucide-react';
 import { EditarPrecoItem } from '@/components/EditarPrecoItem';
 import { EditarQtdItem } from '@/components/EditarQtdItem';
@@ -162,6 +162,13 @@ export default function ComandaDetalhe() {
   const [removeItem, setRemoveItem] = useState<ComandaItem | null>(null);
   const [removeMotivo, setRemoveMotivo] = useState('');
   const [removeLoading, setRemoveLoading] = useState(false);
+
+  // Trocar mesa
+  const [trocaMesaModal, setTrocaMesaModal] = useState(false);
+  const [mesasLivres, setMesasLivres] = useState<{ id: string; numero: number; capacidade: number }[]>([]);
+  const [mesaDestinoId, setMesaDestinoId] = useState('');
+  const [motivoTroca, setMotivoTroca] = useState('');
+  const [loadingTroca, setLoadingTroca] = useState(false);
 
   // Cliente update
   const [clienteModal, setClienteModal] = useState(false);
@@ -442,6 +449,32 @@ export default function ComandaDetalhe() {
     }
   };
 
+  const openTrocaMesa = async () => {
+    const { data } = await supabase.from('mesas').select('id, numero, capacidade').eq('status', 'aberta').order('numero');
+    setMesasLivres(data || []);
+    setMesaDestinoId('');
+    setMotivoTroca('');
+    setTrocaMesaModal(true);
+  };
+
+  const handleTrocarMesa = async () => {
+    if (!comanda?.mesa_id || !mesaDestinoId || !id) return;
+    setLoadingTroca(true);
+    const mesaDestino = mesasLivres.find(m => m.id === mesaDestinoId);
+    await supabase.from('comandas').update({ mesa_id: mesaDestinoId }).eq('id', id);
+    await supabase.from('comanda_historico').insert({
+      comanda_id: id,
+      acao: 'troca_mesa',
+      descricao: `Transferido da Mesa ${comanda.mesas?.numero} para Mesa ${mesaDestino?.numero}${motivoTroca ? `. Motivo: ${motivoTroca}` : ''}`,
+    });
+    await supabase.from('mesas').update({ status: 'aberta' }).eq('id', comanda.mesa_id);
+    await supabase.from('mesas').update({ status: 'ocupada' }).eq('id', mesaDestinoId);
+    toast.success(`Transferido para Mesa ${mesaDestino?.numero}`);
+    setTrocaMesaModal(false);
+    setLoadingTroca(false);
+    fetchComanda();
+  };
+
   const activeItens = useMemo(() => itens.filter(i => i.status !== 'cancelado'), [itens]);
   const subtotal = useMemo(() => activeItens.reduce((sum, i) => sum + i.preco_unitario * i.quantidade, 0), [activeItens]);
   const taxaServico = comanda?.taxa_servico_ativa ? subtotal * ((comanda.taxa_servico_valor || 10) / 100) : 0;
@@ -491,6 +524,11 @@ export default function ComandaDetalhe() {
           <Badge className={statusBadgeConfig[comanda.status || 'aberta']?.className}>
             {statusBadgeConfig[comanda.status || 'aberta']?.label}
           </Badge>
+          {comanda.status === 'aberta' && comanda.mesa_id && (
+            <Button size="sm" variant="outline" onClick={openTrocaMesa}>
+              <ArrowLeftRight className="h-4 w-4 mr-1" /> Trocar Mesa
+            </Button>
+          )}
           {(comanda.status === 'aberta' || (comanda.status === 'fechada' && profile?.role === 'admin')) && (
             <Button size="sm" variant="destructive" onClick={() => { setCancelMotivo(''); setCancelFuncId(''); setCancelRefNumber(''); setConfirmString(''); setCancelModal(true); }}>
               <XCircle className="h-4 w-4 mr-1" /> Cancelar
@@ -1107,6 +1145,56 @@ export default function ComandaDetalhe() {
                 </div>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={trocaMesaModal} onOpenChange={setTrocaMesaModal}>
+        <DialogContent className="glass max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-primary" />
+              Trocar de Mesa
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Transferindo da <span className="font-semibold text-foreground">Mesa {comanda.mesas?.numero}</span> para:
+            </p>
+            <div className="space-y-2">
+              <Label>Mesa destino (livres)</Label>
+              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                {mesasLivres.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMesaDestinoId(m.id)}
+                    className={`rounded-lg border p-3 text-center text-sm font-semibold transition-colors ${
+                      mesaDestinoId === m.id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-primary/50 hover:bg-accent'
+                    }`}
+                  >
+                    Mesa {m.numero}
+                    <p className="text-[10px] font-normal text-muted-foreground">{m.capacidade} lugares</p>
+                  </button>
+                ))}
+                {mesasLivres.length === 0 && (
+                  <p className="col-span-3 text-center text-sm text-muted-foreground py-4">Nenhuma mesa livre disponível.</p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input
+                placeholder="Ex: Pedido do cliente, mesa com defeito..."
+                value={motivoTroca}
+                onChange={e => setMotivoTroca(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleTrocarMesa} disabled={!mesaDestinoId || loadingTroca} className="w-full">
+              <ArrowLeftRight className="h-4 w-4 mr-2" />
+              {loadingTroca ? 'Transferindo...' : 'Confirmar Troca'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

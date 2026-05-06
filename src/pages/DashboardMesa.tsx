@@ -4,11 +4,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { Grid3X3, DollarSign, Users, Clock, Eye, DoorOpen, AlertTriangle, Landmark } from 'lucide-react';
+import { Grid3X3, DollarSign, Users, Clock, Eye, DoorOpen, AlertTriangle, Landmark, ArrowLeftRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AbrirMesaModal } from '@/components/AbrirMesaModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface Mesa {
   id: string;
@@ -42,6 +46,12 @@ export default function DashboardMesa() {
   const [ultimaComandaPorMesa, setUltimaComandaPorMesa] = useState<Map<string, { numero: number | null; closed_at: string }>>(new Map());
   const [ultimoItemPorComanda, setUltimoItemPorComanda] = useState<Map<string, string>>(new Map());
   const [caixaAberto, setCaixaAberto] = useState<boolean | null>(null);
+
+  const [trocaDialogOpen, setTrocaDialogOpen] = useState(false);
+  const [mesaParaTrocar, setMesaParaTrocar] = useState<Mesa | null>(null);
+  const [mesaDestinoId, setMesaDestinoId] = useState<string>('');
+  const [motivoTroca, setMotivoTroca] = useState('');
+  const [loadingTroca, setLoadingTroca] = useState(false);
 
   const fetchAll = async () => {
     const [mesasRes, comandasRes, totalRes, ultimasRes, caixaRes] = await Promise.all([
@@ -82,6 +92,40 @@ export default function DashboardMesa() {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  const openTrocaMesa = (mesa: Mesa) => {
+    setMesaParaTrocar(mesa);
+    setMesaDestinoId('');
+    setMotivoTroca('');
+    setTrocaDialogOpen(true);
+  };
+
+  const handleTrocarMesa = async () => {
+    if (!mesaParaTrocar || !mesaDestinoId) return;
+    setLoadingTroca(true);
+    const mesaDestino = mesas.find(m => m.id === mesaDestinoId);
+    const { data: comandasAb } = await supabase
+      .from('comandas').select('id').eq('mesa_id', mesaParaTrocar.id).eq('status', 'aberta');
+    if (!comandasAb || comandasAb.length === 0) {
+      toast.error('Nenhuma comanda aberta encontrada nesta mesa');
+      setLoadingTroca(false);
+      return;
+    }
+    for (const comanda of comandasAb) {
+      await supabase.from('comandas').update({ mesa_id: mesaDestinoId }).eq('id', comanda.id);
+      await supabase.from('comanda_historico').insert({
+        comanda_id: comanda.id,
+        acao: 'troca_mesa',
+        descricao: `Transferido da Mesa ${mesaParaTrocar.numero} para Mesa ${mesaDestino?.numero}${motivoTroca ? `. Motivo: ${motivoTroca}` : ''}`,
+      });
+    }
+    await supabase.from('mesas').update({ status: 'aberta' }).eq('id', mesaParaTrocar.id);
+    await supabase.from('mesas').update({ status: 'ocupada' }).eq('id', mesaDestinoId);
+    toast.success(`Mesa ${mesaParaTrocar.numero} transferida para Mesa ${mesaDestino?.numero}`);
+    setTrocaDialogOpen(false);
+    setLoadingTroca(false);
+    fetchAll();
+  };
 
   const comandaPorMesa = useMemo(() => {
     const map = new Map<string, ComandaAberta>();
@@ -174,7 +218,18 @@ export default function DashboardMesa() {
                           </span>
                         )}
                       </div>
-                      <Badge className={config.badge}>{config.label}</Badge>
+                      <div className="flex items-center gap-1">
+                        {mesa.status === 'ocupada' && (
+                          <button
+                            title="Trocar de Mesa"
+                            onClick={() => openTrocaMesa(mesa)}
+                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5 text-primary" />
+                          </button>
+                        )}
+                        <Badge className={config.badge}>{config.label}</Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Users className="h-3 w-3" /> {mesa.capacidade} lugares
@@ -227,6 +282,60 @@ export default function DashboardMesa() {
       </div>
 
       <AbrirMesaModal open={abrirMesaModal} onOpenChange={setAbrirMesaModal} mesa={mesaSelecionada} onSuccess={fetchAll} />
+
+      <Dialog open={trocaDialogOpen} onOpenChange={setTrocaDialogOpen}>
+        <DialogContent className="glass max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-primary" />
+              Trocar de Mesa
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {mesaParaTrocar && (
+              <p className="text-sm text-muted-foreground">
+                Transferindo clientes da <span className="font-semibold text-foreground">Mesa {mesaParaTrocar.numero}</span> para:
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>Mesa destino (livres)</Label>
+              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                {mesas
+                  .filter(m => m.status === 'aberta' && m.id !== mesaParaTrocar?.id)
+                  .map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => setMesaDestinoId(m.id)}
+                      className={`rounded-lg border p-3 text-center text-sm font-semibold transition-colors ${
+                        mesaDestinoId === m.id
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:border-primary/50 hover:bg-accent'
+                      }`}
+                    >
+                      Mesa {m.numero}
+                      <p className="text-[10px] font-normal text-muted-foreground">{m.capacidade} lugares</p>
+                    </button>
+                  ))}
+                {mesas.filter(m => m.status === 'aberta' && m.id !== mesaParaTrocar?.id).length === 0 && (
+                  <p className="col-span-3 text-center text-sm text-muted-foreground py-4">Nenhuma mesa livre disponível.</p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input
+                placeholder="Ex: Pedido do cliente, mesa com defeito..."
+                value={motivoTroca}
+                onChange={e => setMotivoTroca(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleTrocarMesa} disabled={!mesaDestinoId || loadingTroca} className="w-full">
+              <ArrowLeftRight className="h-4 w-4 mr-2" />
+              {loadingTroca ? 'Transferindo...' : 'Confirmar Troca'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

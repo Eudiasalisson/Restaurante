@@ -17,7 +17,8 @@ import {
   Warehouse,
   Building2,
   Trophy,
-  ShoppingBag } from
+  ShoppingBag,
+  Gift } from
 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -58,7 +59,8 @@ const managementItems = [
 { title: 'Vendas por Produto', url: '/vendas-cronologico', icon: ClipboardList, adminOnly: true },
 { title: 'Vendas do Dia', url: '/vendas-do-dia', icon: ShoppingBag, adminOnly: true },
 { title: 'Clientes do Dia', url: '/clientes-do-dia', icon: Users, adminOnly: true },
-{ title: 'Ranking Clientes', url: '/ranking-clientes', icon: Trophy, adminOnly: true }];
+{ title: 'Ranking Clientes', url: '/ranking-clientes', icon: Trophy, adminOnly: true },
+{ title: 'Sorteio', url: '/sorteio', icon: Gift, adminOnly: true }];
 
 const adminItems = [
 { title: 'Funcionários', url: '/funcionarios', icon: UserCog },
