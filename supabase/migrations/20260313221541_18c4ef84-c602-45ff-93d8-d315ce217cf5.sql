@@ -1,1 +1,0 @@
-ALTER TABLE public.entregas ADD COLUMN funcionario_consumo_id uuid REFERENCES public.funcionarios(id) ON DELETE SET NULL;
