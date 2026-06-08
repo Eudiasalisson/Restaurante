@@ -35,11 +35,15 @@ export default function RankingClientes() {
   const [customDateFrom, setCustomDateFrom] = useState<Date>(new Date());
   const [customDateTo, setCustomDateTo] = useState<Date>(new Date());
 
+  const [semConsumoClientes, setSemConsumoClientes] = useState<{ id: string; nome: string }[]>([]);
+  const [showSemConsumo, setShowSemConsumo] = useState(false);
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
   const [previewContent, setPreviewContent] = useState<React.ReactNode>(null);
 
   const pagination = usePagination(ranking, 20);
+  const paginationSemConsumo = usePagination(semConsumoClientes, 20);
 
   const periodLabel = useMemo(() => {
     switch (period) {
@@ -152,7 +156,12 @@ export default function RankingClientes() {
       .filter(c => c.valor_total > 0)
       .sort((a, b) => b.valor_total - a.valor_total);
 
+    const semConsumo = Object.values(clienteMap)
+      .filter(c => c.valor_total === 0)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
     setRanking(sorted);
+    setSemConsumoClientes(semConsumo);
     setLoading(false);
   };
 
@@ -271,6 +280,15 @@ export default function RankingClientes() {
               {p === 'all' ? 'Todo Período' : p === 'week' ? 'Semana' : p === 'month' ? 'Mês' : p === 'year' ? 'Ano' : 'Personalizado'}
             </Button>
           ))}
+          <div className="w-px h-5 bg-border" />
+          <Button
+            size="sm"
+            variant={showSemConsumo ? 'default' : 'outline'}
+            onClick={() => setShowSemConsumo(v => !v)}
+            className="text-xs"
+          >
+            <Users className="h-3.5 w-3.5 mr-1" /> Sem Consumo
+          </Button>
           {period === 'custom' && (
             <>
               <Popover>
@@ -304,7 +322,9 @@ export default function RankingClientes() {
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription className="text-xs text-muted-foreground">
-          Ranking de clientes ordenado pelo valor total de consumo (comandas + entregas finalizadas). Os três primeiros colocados recebem destaque especial.
+          {showSemConsumo
+            ? 'Clientes cadastrados que não possuem nenhum consumo registrado no período selecionado.'
+            : 'Ranking de clientes ordenado pelo valor total de consumo (comandas + entregas finalizadas). Os três primeiros colocados recebem destaque especial.'}
         </AlertDescription>
       </Alert>
 
@@ -312,6 +332,47 @@ export default function RankingClientes() {
         <div className="flex items-center justify-center h-64">
           <div className="text-xl font-serif text-gradient-gold animate-pulse">桜</div>
         </div>
+      ) : showSemConsumo ? (
+        semConsumoClientes.length === 0 ? (
+          <Card className="glass">
+            <CardContent className="py-12 text-center text-muted-foreground">
+              Todos os clientes consumiram no período selecionado.
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Card className="glass">
+              <CardContent className="pt-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Clientes sem consumo</p>
+                <p className="text-xl font-bold text-foreground">{semConsumoClientes.length}</p>
+              </CardContent>
+            </Card>
+            <Card className="glass overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead>Cliente</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginationSemConsumo.paginatedItems.map(c => (
+                    <TableRow key={c.id} className="border-border">
+                      <TableCell>{c.nome}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                page={paginationSemConsumo.page}
+                totalPages={paginationSemConsumo.totalPages}
+                totalItems={paginationSemConsumo.totalItems}
+                pageSize={paginationSemConsumo.pageSize}
+                onPageChange={paginationSemConsumo.setPage}
+                onPageSizeChange={paginationSemConsumo.setPageSize}
+              />
+            </Card>
+          </>
+        )
       ) : ranking.length === 0 ? (
         <Card className="glass">
           <CardContent className="py-12 text-center text-muted-foreground">

@@ -19,7 +19,20 @@ import {
 } from 'recharts';
 import jsPDF from 'jspdf';
 
-const COLORS = ['hsl(220, 70%, 55%)', 'hsl(142, 71%, 45%)', 'hsl(43, 90%, 50%)', 'hsl(280, 60%, 60%)', 'hsl(0, 72%, 55%)'];
+const COLORS = [
+  'hsl(220, 70%, 55%)',
+  'hsl(142, 71%, 45%)',
+  'hsl(43, 90%, 50%)',
+  'hsl(280, 60%, 60%)',
+  'hsl(0, 72%, 55%)',
+  'hsl(190, 80%, 48%)',
+  'hsl(30, 85%, 55%)',
+  'hsl(320, 65%, 55%)',
+  'hsl(160, 60%, 42%)',
+  'hsl(260, 55%, 65%)',
+  'hsl(10, 80%, 58%)',
+  'hsl(200, 75%, 52%)',
+];
 
 export default function Relatorios() {
   const [dateFrom, setDateFrom] = useState<Date>(new Date());
@@ -694,7 +707,7 @@ export default function Relatorios() {
                     className="w-full mb-2 h-8 px-3 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     autoFocus
                   />
-                  <ScrollArea className="max-h-56">
+                  <ScrollArea className="h-56">
                     {produtos.filter(p => p.nome.toLowerCase().includes(produtoSearch.toLowerCase())).length === 0 ? (
                       <p className="text-center text-sm text-muted-foreground py-2">Nenhum produto encontrado.</p>
                     ) : produtos.filter(p => p.nome.toLowerCase().includes(produtoSearch.toLowerCase())).map(p => (

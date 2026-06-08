@@ -258,7 +258,11 @@ export default function Clientes() {
   };
 
   const removeEnd = async (endId: string) => {
-    await supabase.from('enderecos_cliente').delete().eq('id', endId);
+    const { error } = await supabase.from('enderecos_cliente').delete().eq('id', endId);
+    if (error) {
+      toast.error('Não foi possível remover o endereço. Ele pode estar vinculado a uma entrega.');
+      return;
+    }
     toast.success('Removido');
     if (selectedCliente) openEnderecos(selectedCliente);
   };
@@ -298,15 +302,15 @@ export default function Clientes() {
                   : '-';
                 return (
                   <TableRow key={c.id} className="border-border">
-                    <TableCell>
+                    <TableCell className="py-1.5">
                       <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
-                    <TableCell className="font-medium">{c.nome}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatPhone(c.telefone) || '-'}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{endStr}</TableCell>
-                    <TableCell className="flex gap-1">
+                    <TableCell className="font-medium py-1.5">{c.nome}</TableCell>
+                    <TableCell className="text-muted-foreground py-1.5">{formatPhone(c.telefone) || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm py-1.5">{endStr}</TableCell>
+                    <TableCell className="flex gap-1 py-1.5">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEnderecos(c)}><MapPin className="h-4 w-4" /></Button>
                     </TableCell>
