@@ -290,6 +290,7 @@ export default function Clientes() {
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Telefone</TableHead>
+                <TableHead>CPF</TableHead>
                 <TableHead>Endereço Principal</TableHead>
                 <TableHead className="w-24">Ações</TableHead>
               </TableRow>
@@ -309,6 +310,13 @@ export default function Clientes() {
                     </TableCell>
                     <TableCell className="font-medium py-1.5">{c.nome}</TableCell>
                     <TableCell className="text-muted-foreground py-1.5">{formatPhone(c.telefone) || '-'}</TableCell>
+                    <TableCell className="py-1.5">
+                      {c.cpf ? (
+                        <span className="text-muted-foreground">{c.cpf}</span>
+                      ) : (
+                        <span className="text-warning text-xs">Sem CPF</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm py-1.5">{endStr}</TableCell>
                     <TableCell className="flex gap-1 py-1.5">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
@@ -318,7 +326,7 @@ export default function Clientes() {
                 );
               })}
               {paginatedItems.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum encontrado</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
