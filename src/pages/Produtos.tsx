@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Search, Pencil, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Upload, ImageIcon, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { usePagination } from '@/hooks/usePagination';
@@ -34,6 +34,11 @@ interface Produto {
   estoque_atual: number | null;
   ativo: boolean;
   imagem_url: string | null;
+  ncm: string | null;
+  cfop: string | null;
+  cst_csosn: string | null;
+  unidade: string | null;
+  aliquota_icms: number | null;
   categorias?: { nome: string } | null;
 }
 
@@ -42,6 +47,7 @@ const emptyForm = {
   preco_promocional: '', promocao_ativa: false, controle_estoque: false, estoque_atual: '',
   estoque_minimo: '1', enviar_cozinha: true, exibir_cardapio: true,
   mais_pedido: false, novidade: false,
+  ncm: '', cfop: '5102', cst_csosn: '', unidade: 'UN', aliquota_icms: '',
 };
 
 export default function Produtos() {
@@ -91,6 +97,8 @@ export default function Produtos() {
       exibir_cardapio: (p as any).exibir_cardapio ?? true,
       mais_pedido: (p as any).mais_pedido ?? false,
       novidade: (p as any).novidade ?? false,
+      ncm: p.ncm || '', cfop: p.cfop || '5102', cst_csosn: p.cst_csosn || '',
+      unidade: p.unidade || 'UN', aliquota_icms: p.aliquota_icms != null ? String(p.aliquota_icms) : '',
     });
     setImageFile(null);
     setDialogOpen(true);
@@ -122,6 +130,11 @@ export default function Produtos() {
       exibir_cardapio: form.exibir_cardapio,
       mais_pedido: form.mais_pedido,
       novidade: form.novidade,
+      ncm: form.ncm.trim() || null,
+      cfop: form.cfop.trim() || null,
+      cst_csosn: form.cst_csosn.trim() || null,
+      unidade: form.unidade.trim() || 'UN',
+      aliquota_icms: form.aliquota_icms ? parseFloat(form.aliquota_icms) : null,
     };
 
     // Only include estoque_atual if creating new product OR user explicitly changed the value
@@ -221,7 +234,14 @@ export default function Produtos() {
                     <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(p)} className="text-destructive hover:text-destructive" disabled={!perms.pode_excluir} title={!perms.pode_excluir ? 'Sem permissão para excluir' : 'Excluir'}><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{p.codigo ?? '-'}</TableCell>
-                  <TableCell className="font-medium">{p.nome}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-1.5">
+                      {p.nome}
+                      {!p.ncm && (
+                        <span title="Sem NCM cadastrado — necessário para emitir NFC-e"><AlertTriangle className="h-3.5 w-3.5 text-warning" /></span>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{p.categorias?.nome || '-'}</TableCell>
                   <TableCell>R$ {Number(p.preco_venda).toFixed(2)}</TableCell>
                   <TableCell>
@@ -284,6 +304,23 @@ export default function Produtos() {
                 <div className="space-y-2"><Label>Estoque mínimo</Label><Input type="number" min={0} value={form.estoque_minimo} onChange={e => setForm(f => ({ ...f, estoque_minimo: e.target.value }))} /></div>
               </div>
             )}
+
+            <div className="space-y-3 p-3 border border-border rounded-md">
+              <Label className="text-xs text-muted-foreground uppercase font-semibold">Dados Fiscais (NFC-e)</Label>
+              <p className="text-xs text-muted-foreground">
+                Necessários para emitir a NFC-e deste produto. Confirme os códigos com seu contador — valores incorretos podem gerar rejeição ou inconsistência fiscal.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>NCM</Label><Input placeholder="Ex: 21069090" value={form.ncm} onChange={e => setForm(f => ({ ...f, ncm: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>CFOP</Label><Input placeholder="5102" value={form.cfop} onChange={e => setForm(f => ({ ...f, cfop: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>CST / CSOSN</Label><Input placeholder="Ex: 102 (Simples) ou 00" value={form.cst_csosn} onChange={e => setForm(f => ({ ...f, cst_csosn: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Unidade</Label><Input placeholder="UN" value={form.unidade} onChange={e => setForm(f => ({ ...f, unidade: e.target.value }))} /></div>
+              </div>
+              <div className="space-y-2"><Label>Alíquota ICMS (%)</Label><Input type="number" step="0.01" placeholder="0" value={form.aliquota_icms} onChange={e => setForm(f => ({ ...f, aliquota_icms: e.target.value }))} /></div>
+            </div>
+
             <Button onClick={handleSave} disabled={uploading || (editing ? !perms.pode_editar : !perms.pode_criar)} className="w-full">
               {uploading ? 'Salvando...' : editing ? (perms.pode_editar ? 'Salvar' : 'Sem permissão para editar') : 'Adicionar'}
             </Button>

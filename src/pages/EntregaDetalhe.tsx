@@ -29,6 +29,7 @@ import { CupomEntregaPreview } from '@/components/entrega/CupomEntregaPreview';
 import { ComprovanteEntregaPreview } from '@/components/entrega/ComprovanteEntregaPreview';
 import { EntregaHistorico } from '@/components/entrega/EntregaHistorico';
 import { PagamentoModal } from '@/components/PagamentoModal';
+import { NotaFiscalNFCe } from '@/components/NotaFiscalNFCe';
 import { PdfPreviewModal } from '@/components/PdfPreviewModal';
 import { useEmpresa } from '@/hooks/useEmpresa';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -860,6 +861,16 @@ export default function EntregaDetalhe() {
                           </div>
                         </div>
                       </>
+                    )}
+
+                    {entrega.status !== 'cancelada' && (
+                      <NotaFiscalNFCe
+                        entregaId={id!}
+                        podeEmitir={saldoRestante <= 0.01}
+                        clienteId={entrega.cliente_id}
+                        clienteNome={entrega.clientes?.nome ?? null}
+                        onClienteAtualizado={fetchEntrega}
+                      />
                     )}
                   </CardContent>
                 </Card>

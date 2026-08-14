@@ -18,7 +18,8 @@ import {
   Building2,
   Trophy,
   ShoppingBag,
-  Gift } from
+  Gift,
+  FileText } from
 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -54,6 +55,7 @@ const managementItems = [
 { title: 'Comandas', url: '/comandas', icon: ClipboardList },
 { title: 'Entregas', url: '/entregas', icon: Truck },
 { title: 'Inventário', url: '/inventario', icon: Warehouse },
+{ title: 'Notas Fiscais', url: '/notas-fiscais', icon: FileText, adminOnly: true },
 { title: 'Relatórios', url: '/relatorios', icon: BarChart3, adminOnly: true },
 { title: 'Rel. Caixa', url: '/relatorio-caixa', icon: Landmark, adminOnly: true },
 { title: 'Vendas por Produto', url: '/vendas-cronologico', icon: ClipboardList, adminOnly: true },

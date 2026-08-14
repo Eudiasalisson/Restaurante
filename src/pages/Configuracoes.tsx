@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings, Upload, Building2, Smartphone, Store, Lock, Wrench, Database } from 'lucide-react';
+import { Settings, Upload, Building2, Smartphone, Store, Lock, Wrench, Database, FileText, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -26,11 +26,13 @@ interface Empresa {
   tempo_medio_entrega: string | null;
   slogan: string | null;
   mensagem_conclusao: string | null;
+  nfce_ambiente: string | null;
 }
 
 export default function Configuracoes() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [form, setForm] = useState({ nome: '', cnpj: '', telefone: '', endereco: '', taxa_servico_padrao: '10' });
+  const [nfceAmbiente, setNfceAmbiente] = useState('homologacao');
   const [cardapioForm, setCardapioForm] = useState({
     cardapio_status: 'aberto', whatsapp_pedidos: '', chave_pix: '',
     valor_minimo_pedido: '0', tempo_medio_entrega: '40-60 min', slogan: '', mensagem_conclusao: '',
@@ -59,7 +61,17 @@ export default function Configuracoes() {
         slogan: d.slogan || '',
         mensagem_conclusao: d.mensagem_conclusao || '',
       });
+      setNfceAmbiente(d.nfce_ambiente || 'homologacao');
     }
+  };
+
+  const handleSaveNfce = async () => {
+    if (!empresa) { toast.error('Cadastre a empresa primeiro'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('empresas').update({ nfce_ambiente: nfceAmbiente }).eq('id', empresa.id);
+    if (error) toast.error('Erro ao salvar');
+    else { toast.success('Ambiente da NFC-e atualizado!'); fetchEmpresa(); }
+    setSaving(false);
   };
 
   useEffect(() => { fetchEmpresa(); }, []);
@@ -184,6 +196,7 @@ export default function Configuracoes() {
         <TabsList>
           <TabsTrigger value="empresa" className="gap-2"><Building2 className="h-4 w-4" /> Empresa</TabsTrigger>
           <TabsTrigger value="cardapio" className="gap-2"><Smartphone className="h-4 w-4" /> Cardápio Digital</TabsTrigger>
+          <TabsTrigger value="nfce" className="gap-2"><FileText className="h-4 w-4" /> NFC-e</TabsTrigger>
           <TabsTrigger value="seguranca" className="gap-2"><Lock className="h-4 w-4" /> Segurança</TabsTrigger>
           <TabsTrigger value="manutencao" className="gap-2"><Wrench className="h-4 w-4" /> Manutenção</TabsTrigger>
         </TabsList>
@@ -247,6 +260,40 @@ export default function Configuracoes() {
               <div className="space-y-2"><Label>Mensagem de conclusão do pedido</Label><Textarea placeholder="Obrigado pelo pedido! Seu pedido está sendo preparado..." value={cardapioForm.mensagem_conclusao} onChange={e => setCardapioForm(f => ({ ...f, mensagem_conclusao: e.target.value }))} /></div>
               <Button onClick={handleSaveCardapio} disabled={saving} className="w-full md:w-auto">
                 {saving ? 'Salvando...' : 'Salvar Cardápio Digital'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="nfce">
+          <Card className="glass">
+            <CardHeader><CardTitle className="font-serif flex items-center gap-2"><FileText className="h-5 w-5" /> Nota Fiscal (NFC-e)</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                A emissão de NFC-e é feita via integração com a <strong>Notaas</strong>. O cadastro fiscal da empresa (CNPJ, certificado digital, CSC da Sefaz-MG) é configurado diretamente no painel da Notaas — aqui você só controla se o sistema está operando em modo de teste ou em produção.
+              </p>
+              <div className="flex items-center gap-4 p-4 rounded-lg border border-border">
+                <div className="flex-1">
+                  <Label>Ambiente ativo</Label>
+                  <p className="text-xs text-muted-foreground">Deve corresponder à chave de API configurada nos secrets do Supabase (NOTAAS_API_KEY)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">{nfceAmbiente === 'producao' ? 'Produção' : 'Homologação'}</span>
+                  <Switch checked={nfceAmbiente === 'producao'} onCheckedChange={v => setNfceAmbiente(v ? 'producao' : 'homologacao')} />
+                </div>
+              </div>
+              {nfceAmbiente === 'homologacao' ? (
+                <div className="p-3 rounded-md bg-warning/10 border border-warning/20 text-warning text-sm flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p><strong>Modo teste.</strong> As NFC-e emitidas não têm valor fiscal. Use este modo até validar todo o fluxo antes de ir para produção.</p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p><strong>Modo produção.</strong> As NFC-e emitidas a partir de agora têm valor fiscal real e são enviadas à Sefaz-MG.</p>
+                </div>
+              )}
+              <Button onClick={handleSaveNfce} disabled={saving} className="w-full md:w-auto">
+                {saving ? 'Salvando...' : 'Salvar Ambiente'}
               </Button>
             </CardContent>
           </Card>

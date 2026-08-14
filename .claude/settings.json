@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git -C /c/Users/aliss/OneDrive/Documents/Restaurante log --oneline)",
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "WebFetch(domain:docs.notaas.com.br)",
+      "Bash(npm install *)"
     ]
   }
 }

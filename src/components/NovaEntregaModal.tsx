@@ -128,6 +128,7 @@ export function NovaEntregaModal({ open, onOpenChange, onSuccess }: NovaEntregaM
 
   const handleCriarCliente = async () => {
     if (!novoCliente.nome.trim()) { toast.error('Nome é obrigatório'); return; }
+    if (!novoCliente.telefone.trim()) { toast.error('Telefone é obrigatório'); return; }
 
     // Verificar duplicidade de nome
     const { data: existingNome } = await supabase
@@ -288,7 +289,7 @@ export function NovaEntregaModal({ open, onOpenChange, onSuccess }: NovaEntregaM
               </div>
               <Input placeholder="Nome *" value={novoCliente.nome} onChange={e => setNovoCliente(f => ({ ...f, nome: e.target.value }))} />
               <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="Telefone" value={novoCliente.telefone} onChange={e => setNovoCliente(f => ({ ...f, telefone: e.target.value }))} />
+                <Input placeholder="Telefone *" value={novoCliente.telefone} onChange={e => setNovoCliente(f => ({ ...f, telefone: e.target.value }))} />
                 <Input placeholder="CPF" value={novoCliente.cpf} onChange={e => setNovoCliente(f => ({ ...f, cpf: e.target.value }))} />
               </div>
               <Input placeholder="E-mail" value={novoCliente.email} onChange={e => setNovoCliente(f => ({ ...f, email: e.target.value }))} />

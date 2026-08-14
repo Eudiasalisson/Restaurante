@@ -2,14 +2,17 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, Package, Info } from 'lucide-react';
+import { CalendarIcon, Package, Info, Search } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { usePagination } from '@/hooks/usePagination';
+import { TablePagination } from '@/components/TablePagination';
 
 interface ProdutoVendido {
   produto: string;
@@ -26,6 +29,7 @@ export default function ProdutosVendidosDia() {
   const [dateTo, setDateTo] = useState<Date>(new Date());
   const [itens, setItens] = useState<ProdutoVendido[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,6 +85,14 @@ export default function ProdutosVendidosDia() {
   const totalQtd = useMemo(() => itens.reduce((s, i) => s + i.quantidade, 0), [itens]);
   const totalValor = useMemo(() => itens.reduce((s, i) => s + i.valorTotal, 0), [itens]);
 
+  const itensFiltrados = useMemo(() => {
+    if (!search.trim()) return itens;
+    const s = search.toLowerCase();
+    return itens.filter(i => i.produto.toLowerCase().includes(s));
+  }, [itens, search]);
+
+  const { paginatedItems, page, pageSize, totalPages, totalItems, setPage, setPageSize } = usePagination(itensFiltrados);
+
   const DatePicker = ({ date, onChange, label }: { date: Date; onChange: (d: Date) => void; label: string }) => (
     <Popover>
       <PopoverTrigger asChild>
@@ -122,6 +134,11 @@ export default function ProdutosVendidosDia() {
         </AlertDescription>
       </Alert>
 
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input className="pl-9" placeholder="Buscar produto na listagem..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-xl font-serif text-gradient-gold animate-pulse">桜</div>
@@ -130,6 +147,12 @@ export default function ProdutosVendidosDia() {
         <Card className="glass">
           <CardContent className="py-12 text-center text-muted-foreground">
             Nenhum produto vendido nesta data.
+          </CardContent>
+        </Card>
+      ) : itensFiltrados.length === 0 ? (
+        <Card className="glass">
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Nenhum produto encontrado para "{search}" no período selecionado.
           </CardContent>
         </Card>
       ) : (
@@ -147,7 +170,7 @@ export default function ProdutosVendidosDia() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {itens.map((item, i) => (
+              {paginatedItems.map((item, i) => (
                 <TableRow key={i} className="border-border">
                   <TableCell className="font-medium">{item.produto}</TableCell>
                   <TableCell className="text-center">{item.quantidade}</TableCell>
@@ -159,7 +182,7 @@ export default function ProdutosVendidosDia() {
                 </TableRow>
               ))}
               <TableRow className="border-border font-bold bg-secondary/30">
-                <TableCell>Total</TableCell>
+                <TableCell>Total do período</TableCell>
                 <TableCell className="text-center">{totalQtd}</TableCell>
                 <TableCell></TableCell>
                 <TableCell className="text-right text-primary">R$ {totalValor.toFixed(2)}</TableCell>
@@ -167,6 +190,14 @@ export default function ProdutosVendidosDia() {
               </TableRow>
             </TableBody>
           </Table>
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </Card>
       )}
     </div>

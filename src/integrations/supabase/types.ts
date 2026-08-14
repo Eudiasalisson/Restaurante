@@ -343,6 +343,7 @@ export type Database = {
           id: string
           logo_url: string | null
           mensagem_conclusao: string | null
+          nfce_ambiente: string
           nome: string
           slogan: string | null
           taxa_servico_padrao: number | null
@@ -359,6 +360,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           mensagem_conclusao?: string | null
+          nfce_ambiente?: string
           nome: string
           slogan?: string | null
           taxa_servico_padrao?: number | null
@@ -375,6 +377,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           mensagem_conclusao?: string | null
+          nfce_ambiente?: string
           nome?: string
           slogan?: string | null
           taxa_servico_padrao?: number | null
@@ -796,10 +799,13 @@ export type Database = {
       }
       produtos: {
         Row: {
+          aliquota_icms: number | null
           ativo: boolean | null
           categoria_id: string | null
+          cfop: string | null
           codigo: number | null
           controle_estoque: boolean | null
+          cst_csosn: string | null
           descricao: string | null
           enviar_cozinha: boolean | null
           estoque_atual: number | null
@@ -808,18 +814,23 @@ export type Database = {
           id: string
           imagem_url: string | null
           mais_pedido: boolean | null
+          ncm: string | null
           nome: string
           novidade: boolean | null
           preco_custo: number | null
           preco_promocional: number | null
           preco_venda: number
           promocao_ativa: boolean | null
+          unidade: string | null
         }
         Insert: {
+          aliquota_icms?: number | null
           ativo?: boolean | null
           categoria_id?: string | null
+          cfop?: string | null
           codigo?: number | null
           controle_estoque?: boolean | null
+          cst_csosn?: string | null
           descricao?: string | null
           enviar_cozinha?: boolean | null
           estoque_atual?: number | null
@@ -828,18 +839,23 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           mais_pedido?: boolean | null
+          ncm?: string | null
           nome: string
           novidade?: boolean | null
           preco_custo?: number | null
           preco_promocional?: number | null
           preco_venda?: number
           promocao_ativa?: boolean | null
+          unidade?: string | null
         }
         Update: {
+          aliquota_icms?: number | null
           ativo?: boolean | null
           categoria_id?: string | null
+          cfop?: string | null
           codigo?: number | null
           controle_estoque?: boolean | null
+          cst_csosn?: string | null
           descricao?: string | null
           enviar_cozinha?: boolean | null
           estoque_atual?: number | null
@@ -848,12 +864,14 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           mais_pedido?: boolean | null
+          ncm?: string | null
           nome?: string
           novidade?: boolean | null
           preco_custo?: number | null
           preco_promocional?: number | null
           preco_venda?: number
           promocao_ativa?: boolean | null
+          unidade?: string | null
         }
         Relationships: [
           {
@@ -861,6 +879,94 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notas_fiscais: {
+        Row: {
+          ambiente: string
+          chave_acesso: string | null
+          comanda_id: string | null
+          created_at: string
+          criada_por: string | null
+          cstat: string | null
+          entrega_id: string | null
+          erro_mensagem: string | null
+          id: string
+          invoice_id: string | null
+          motivo_cancelamento: string | null
+          numero: string | null
+          pdf_url: string | null
+          protocolo: string | null
+          status: Database["public"]["Enums"]["nota_fiscal_status"]
+          updated_at: string
+          valor_total: number | null
+          xml_url: string | null
+          xmotivo: string | null
+        }
+        Insert: {
+          ambiente?: string
+          chave_acesso?: string | null
+          comanda_id?: string | null
+          created_at?: string
+          criada_por?: string | null
+          cstat?: string | null
+          entrega_id?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          invoice_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: string | null
+          pdf_url?: string | null
+          protocolo?: string | null
+          status?: Database["public"]["Enums"]["nota_fiscal_status"]
+          updated_at?: string
+          valor_total?: number | null
+          xml_url?: string | null
+          xmotivo?: string | null
+        }
+        Update: {
+          ambiente?: string
+          chave_acesso?: string | null
+          comanda_id?: string | null
+          created_at?: string
+          criada_por?: string | null
+          cstat?: string | null
+          entrega_id?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          invoice_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: string | null
+          pdf_url?: string | null
+          protocolo?: string | null
+          status?: Database["public"]["Enums"]["nota_fiscal_status"]
+          updated_at?: string
+          valor_total?: number | null
+          xml_url?: string | null
+          xmotivo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "comandas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_fiscais_entrega_id_fkey"
+            columns: ["entrega_id"]
+            isOneToOne: false
+            referencedRelation: "entregas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_fiscais_criada_por_fkey"
+            columns: ["criada_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -942,6 +1048,12 @@ export type Database = {
         | "outro"
         | "consumo_funcionario"
       mesa_status: "aberta" | "ocupada" | "reservada" | "fechada"
+      nota_fiscal_status:
+        | "queued"
+        | "processing"
+        | "issued"
+        | "error"
+        | "cancelled"
       user_role: "admin" | "garcom" | "caixa" | "cozinha"
     }
     CompositeTypes: {
@@ -1093,6 +1205,13 @@ export const Constants = {
         "consumo_funcionario",
       ],
       mesa_status: ["aberta", "ocupada", "reservada", "fechada"],
+      nota_fiscal_status: [
+        "queued",
+        "processing",
+        "issued",
+        "error",
+        "cancelled",
+      ],
       user_role: ["admin", "garcom", "caixa", "cozinha"],
     },
   },

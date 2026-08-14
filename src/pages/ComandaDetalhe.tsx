@@ -29,6 +29,7 @@ import { CupomCozinhaPreview } from '@/components/comanda/CupomCozinhaPreview';
 import { CupomComandaPreview } from '@/components/comanda/CupomComandaPreview';
 import { ComandaHistorico } from '@/components/comanda/ComandaHistorico';
 import { PagamentoModal } from '@/components/PagamentoModal';
+import { NotaFiscalNFCe } from '@/components/NotaFiscalNFCe';
 import { PdfPreviewModal } from '@/components/PdfPreviewModal';
 import { useEmpresa } from '@/hooks/useEmpresa';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -263,6 +264,7 @@ export default function ComandaDetalhe() {
   const handleCriarCliente = async () => {
     if (clienteLoading) return;
     if (!novoCliente.nome.trim()) { toast.error('Nome é obrigatório'); return; }
+    if (!novoCliente.telefone.trim()) { toast.error('Telefone é obrigatório'); return; }
     setClienteLoading(true);
     try {
       const { data, error } = await supabase.from('clientes').insert({
@@ -900,6 +902,16 @@ export default function ComandaDetalhe() {
                         </div>
                       </>
                     )}
+
+                    {comanda.status !== 'cancelada' && (
+                      <NotaFiscalNFCe
+                        comandaId={id!}
+                        podeEmitir={saldoRestante <= 0.01}
+                        clienteId={comanda.cliente_id}
+                        clienteNome={comanda.clientes?.nome ?? null}
+                        onClienteAtualizado={fetchComanda}
+                      />
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -1133,7 +1145,7 @@ export default function ComandaDetalhe() {
               <div className="space-y-3">
                 <Input placeholder="Nome *" value={novoCliente.nome} onChange={e => setNovoCliente(f => ({ ...f, nome: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Telefone" value={novoCliente.telefone} onChange={e => setNovoCliente(f => ({ ...f, telefone: e.target.value }))} />
+                  <Input placeholder="Telefone *" value={novoCliente.telefone} onChange={e => setNovoCliente(f => ({ ...f, telefone: e.target.value }))} />
                   <Input placeholder="CPF" value={novoCliente.cpf} onChange={e => setNovoCliente(f => ({ ...f, cpf: e.target.value }))} />
                 </div>
                 <Input placeholder="E-mail" value={novoCliente.email} onChange={e => setNovoCliente(f => ({ ...f, email: e.target.value }))} />

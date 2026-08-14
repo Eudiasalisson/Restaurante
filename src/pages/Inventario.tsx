@@ -37,7 +37,8 @@ interface Movimentacao {
 }
 
 export default function Inventario() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [produtos, setProdutos] = useState<ProdutoEstoque[]>([]);
   const [search, setSearch] = useState('');
   const [movModal, setMovModal] = useState<{ tipo: 'entrada' | 'saida'; produto: ProdutoEstoque } | null>(null);
@@ -98,6 +99,10 @@ export default function Inventario() {
 
   const handleMovimentar = async () => {
     if (!movModal || movQtd < 1) return;
+    if (movModal.tipo === 'saida' && !isAdmin) {
+      toast.error('Apenas administradores podem registrar saída de estoque');
+      return;
+    }
     setMovLoading(true);
     try {
       const { produto, tipo } = movModal;
@@ -244,7 +249,9 @@ export default function Inventario() {
                       <ArrowUpCircle className="h-3.5 w-3.5" /> Entrada
                     </Button>
                     <Button size="sm" variant="outline" className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => { setMovModal({ tipo: 'saida', produto: p }); setMovQtd(1); setMovMotivo(''); }}>
+                      onClick={() => { setMovModal({ tipo: 'saida', produto: p }); setMovQtd(1); setMovMotivo(''); }}
+                      disabled={!isAdmin}
+                      title={!isAdmin ? 'Apenas administradores podem dar saída de estoque' : undefined}>
                       <ArrowDownCircle className="h-3.5 w-3.5" /> Saída
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => openHistorico(p)}>
