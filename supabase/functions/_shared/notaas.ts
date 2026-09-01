@@ -119,7 +119,12 @@ export function montarPayloadNfce(params: {
   if (params.clienteCpf && /^\d{11}$/.test(params.clienteCpf) && nomeDest.length >= 2) {
     payload.dest = {
       cpf: params.clienteCpf,
+      // Alias "universal" da Notaas para o documento — alguns parsers da API
+      // só reconhecem cpfCnpj e ignoram cpf, resultando em nota sem consumidor.
+      cpfCnpj: params.clienteCpf,
       nome: nomeDest,
+      // Consumidor pessoa física não contribuinte de ICMS.
+      indIEDest: "9",
     };
   }
 
