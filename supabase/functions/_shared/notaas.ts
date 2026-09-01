@@ -111,10 +111,15 @@ export function montarPayloadNfce(params: {
     pagamentos,
   };
 
-  if (params.clienteCpf && /^\d{11}$/.test(params.clienteCpf)) {
+  // A Notaas exige dest.nome (mín. 2 caracteres) sempre que o bloco dest é
+  // enviado — sem ele, o dest inteiro é descartado e a nota sai como
+  // "consumidor não identificado". Só monta o dest quando temos CPF válido
+  // (11 dígitos) E nome; caso contrário emite anônima de propósito.
+  const nomeDest = (params.clienteNome ?? "").trim();
+  if (params.clienteCpf && /^\d{11}$/.test(params.clienteCpf) && nomeDest.length >= 2) {
     payload.dest = {
       cpf: params.clienteCpf,
-      nome: params.clienteNome || undefined,
+      nome: nomeDest,
     };
   }
 

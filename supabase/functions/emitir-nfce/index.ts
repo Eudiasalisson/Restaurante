@@ -83,12 +83,23 @@ Deno.serve(async (req) => {
     if (identificar_cliente) {
       const refTable = comanda_id ? "comandas" : "entregas";
       const { data: venda } = await supabaseAdmin.from(refTable).select("cliente_id").eq("id", refId).single();
+      let cpfBruto: string | null = null;
       if (venda?.cliente_id) {
         const { data: cliente } = await supabaseAdmin.from("clientes").select("nome, cpf").eq("id", venda.cliente_id).single();
-        if (cliente?.cpf) { clienteCpf = cliente.cpf.replace(/\D/g, ""); clienteNome = cliente.nome; }
+        cpfBruto = cliente?.cpf ?? null;
+        clienteCpf = cliente?.cpf ? cliente.cpf.replace(/\D/g, "") : null;
+        clienteNome = cliente?.nome?.trim() || null;
       }
+      // Se a emissão identificada foi pedida, ela TEM que sair identificada —
+      // falha claro em vez de emitir uma nota anônima sem o operador perceber.
       if (!clienteCpf) {
         return json({ error: "Cliente sem CPF cadastrado para emissão identificada." }, 422);
+      }
+      if (!/^\d{11}$/.test(clienteCpf)) {
+        return json({ error: `CPF do cliente inválido para emissão identificada ("${cpfBruto}"). Corrija o CPF no cadastro do cliente.` }, 422);
+      }
+      if (!clienteNome || clienteNome.length < 2) {
+        return json({ error: "Cliente sem nome cadastrado. A NFC-e identificada exige nome + CPF do consumidor." }, 422);
       }
     }
 
@@ -115,6 +126,8 @@ Deno.serve(async (req) => {
       clienteNome,
       ambiente: notaFiscal.ambiente,
     });
+
+    console.log("Notaas /nfe/emitir payload", JSON.stringify(payload));
 
     try {
       const resp = await fetch(`${NOTAAS_BASE_URL}/nfe/emitir`, {
