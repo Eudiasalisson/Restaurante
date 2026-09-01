@@ -31,6 +31,7 @@ Deno.serve(async (req) => {
 
     const { comanda_id, entrega_id, identificar_cliente } = await req.json();
     if (!comanda_id && !entrega_id) return json({ error: "Informe comanda_id ou entrega_id" }, 400);
+    console.log("emitir-nfce request", JSON.stringify({ comanda_id, entrega_id, identificar_cliente }));
 
     // Bloqueia emissão duplicada: se já existe uma nota em andamento ou emitida, retorna ela.
     let existingQuery = supabaseAdmin.from("notas_fiscais").select("*").in("status", ["queued", "processing", "issued"]);
@@ -101,6 +102,7 @@ Deno.serve(async (req) => {
       if (!clienteNome || clienteNome.length < 2) {
         return json({ error: "Cliente sem nome cadastrado. A NFC-e identificada exige nome + CPF do consumidor." }, 422);
       }
+      console.log("emitir-nfce identificado", JSON.stringify({ cliente_id: venda?.cliente_id, clienteCpf, clienteNome }));
     }
 
     const { data: empresa } = await supabaseAdmin.from("empresas").select("nfce_ambiente").limit(1).single();
