@@ -58,17 +58,26 @@ export function montarPayloadNfce(params: {
   clienteNome?: string | null;
   ambiente?: string | null;
 }) {
-  const items = params.itens.map((item) => ({
-    descricao: item.nome,
-    ncm: item.ncm,
-    cfop: item.cfop,
-    quantidade: item.quantidade,
-    valorUnitario: item.preco_unitario,
-    valorTotal: Number((item.preco_unitario * item.quantidade).toFixed(2)),
-    unidade: item.unidade || "UN",
-    cst: item.cst_csosn || undefined,
-    aliquotaIcms: item.aliquota_icms ?? undefined,
-  }));
+  const items = params.itens.map((item) => {
+    // Regime Normal (CRT 2/3) usa CST de 2 dígitos; Simples Nacional / MEI (CRT 1/4)
+    // usa CSOSN de 3 dígitos — a Notaas exige campos separados (`cst` x `csosn`).
+    const codigoTributario = item.cst_csosn?.replace(/\D/g, "") || undefined;
+    const csosn = codigoTributario?.length === 3 ? codigoTributario : undefined;
+    const cst = codigoTributario?.length === 2 ? codigoTributario : undefined;
+
+    return {
+      descricao: item.nome,
+      ncm: item.ncm,
+      cfop: item.cfop,
+      quantidade: item.quantidade,
+      valorUnitario: item.preco_unitario,
+      valorTotal: Number((item.preco_unitario * item.quantidade).toFixed(2)),
+      unidade: item.unidade || "UN",
+      cst,
+      csosn,
+      aliquotaIcms: item.aliquota_icms ?? undefined,
+    };
+  });
 
   // Exigência da Sefaz: em homologação, a descrição do 1º item precisa ser
   // exatamente este texto fixo, senão a nota é rejeitada (não tem efeito em produção).
