@@ -102,31 +102,26 @@ export function montarPayloadNfce(params: {
 
   const payload: Record<string, unknown> = {
     modelo: 65,
-    naturezaOperacao: "Venda de mercadoria",
-    tipoOperacao: 1,
-    finalidade: 1,
+    naturezaOperacao: "Venda a consumidor",
     consumidorFinal: 1,
     presencaComprador: 1,
-    items,
-    pagamentos,
   };
 
-  // A Notaas exige dest.nome (mín. 2 caracteres) sempre que o bloco dest é
-  // enviado — sem ele, o dest inteiro é descartado e a nota sai como
-  // "consumidor não identificado". Só monta o dest quando temos CPF válido
-  // (11 dígitos) E nome; caso contrário emite anônima de propósito.
+  // dest antes de items, com apenas cpf + nome — formato idêntico ao exemplo
+  // "cartão" do playground da Notaas para NFC-e. A Notaas descarta o bloco
+  // inteiro se dest.nome faltar (mín. 2 caracteres), fazendo a nota sair como
+  // "consumidor não identificado"; por isso só monta dest com CPF de 11
+  // dígitos E nome válido — caso contrário emite anônima de propósito.
   const nomeDest = (params.clienteNome ?? "").trim();
   if (params.clienteCpf && /^\d{11}$/.test(params.clienteCpf) && nomeDest.length >= 2) {
     payload.dest = {
       cpf: params.clienteCpf,
-      // Alias "universal" da Notaas para o documento — alguns parsers da API
-      // só reconhecem cpfCnpj e ignoram cpf, resultando em nota sem consumidor.
-      cpfCnpj: params.clienteCpf,
       nome: nomeDest,
-      // Consumidor pessoa física não contribuinte de ICMS.
-      indIEDest: "9",
     };
   }
+
+  payload.items = items;
+  payload.pagamentos = pagamentos;
 
   return payload;
 }
