@@ -13,20 +13,42 @@ export const NOTA_FISCAL_STATUS_CONFIG: Record<NotaFiscalStatus, { label: string
 // Baixa o PDF do DANFE via function (a URL da Notaas exige o header x-api-key,
 // que só a function pode enviar) e abre numa nova aba do navegador.
 export async function baixarDanfe(notaFiscalId: string): Promise<void> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/baixar-danfe`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${sessionData.session?.access_token}`,
-    },
-    body: JSON.stringify({ nota_fiscal_id: notaFiscalId }),
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || 'Erro ao baixar o DANFE');
+  // A aba tem que ser aberta de forma síncrona, ainda dentro do gesto de clique.
+  // Se abrir só depois do await do fetch, o navegador bloqueia como popup e
+  // "não acontece nada". Abrimos em branco agora e redirecionamos ao ter o PDF.
+  const janela = window.open('', '_blank');
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/baixar-danfe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${sessionData.session?.access_token}`,
+      },
+      body: JSON.stringify({ nota_fiscal_id: notaFiscalId }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao baixar o DANFE');
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+
+    if (janela) {
+      janela.location.href = url;
+    } else {
+      // Popup bloqueado pelo navegador: cai para download do arquivo.
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `danfe-${notaFiscalId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    janela?.close();
+    throw e;
   }
-  const blob = await resp.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
 }
