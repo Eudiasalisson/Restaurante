@@ -60,7 +60,7 @@ const managementItems = [
 { title: 'Rel. Caixa', url: '/relatorio-caixa', icon: Landmark, adminOnly: true },
 { title: 'Vendas por Produto', url: '/vendas-cronologico', icon: ClipboardList, adminOnly: true },
 { title: 'Vendas do Dia', url: '/vendas-do-dia', icon: ShoppingBag, adminOnly: true },
-{ title: 'Clientes do Dia', url: '/clientes-do-dia', icon: Users, adminOnly: true },
+{ title: 'Clientes do Dia', url: '/clientes-do-dia', icon: Users },
 { title: 'Ranking Clientes', url: '/ranking-clientes', icon: Trophy, adminOnly: true },
 { title: 'Sorteio', url: '/sorteio', icon: Gift, adminOnly: true }];
 

@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { CreditCard, Banknote, QrCode, CheckCircle2, User, Search } from 'lucide-react';
 import { deductStockForClosing } from '@/lib/stockUtils';
 import { format } from 'date-fns';
@@ -77,7 +76,6 @@ export function PagamentoModal({
   clienteId,
 }: PagamentoModalProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [taxaAtiva, setTaxaAtiva] = useState(initialTaxaAtiva);
   const [acrescimo, setAcrescimo] = useState(initialAcrescimo);
@@ -305,8 +303,10 @@ export function PagamentoModal({
         toast.success('Comanda fechada com sucesso!');
       }
 
+      // Fica na tela da comanda/entrega (não volta para a listagem) para que o
+      // operador possa emitir a NFC-e logo após o fechamento.
+      onUpdated();
       onOpenChange(false);
-      navigate(isEntrega ? '/entregas' : '/');
     } catch {
       toast.error(isEntrega ? 'Erro ao finalizar pedido' : 'Erro ao fechar comanda');
     } finally {

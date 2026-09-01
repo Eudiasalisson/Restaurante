@@ -95,7 +95,7 @@ function AppRoutes() {
       <Route path="/produtos-vendidos" element={<AdminRoute><ProdutosVendidosDia /></AdminRoute>} />
       <Route path="/vendas-cronologico" element={<AdminRoute><VendasCronologico /></AdminRoute>} />
       <Route path="/vendas-do-dia" element={<AdminRoute><VendasDoDia /></AdminRoute>} />
-      <Route path="/clientes-do-dia" element={<AdminRoute><ClientesDoDia /></AdminRoute>} />
+      <Route path="/clientes-do-dia" element={<ProtectedRoute><ClientesDoDia /></ProtectedRoute>} />
       <Route path="/ranking-clientes" element={<AdminRoute><RankingClientes /></AdminRoute>} />
       <Route path="/sorteio" element={<AdminRoute><Sorteio /></AdminRoute>} />
       <Route path="/notas-fiscais" element={<AdminRoute><NotasFiscais /></AdminRoute>} />
