@@ -33,15 +33,21 @@ export async function baixarDanfe(notaFiscalId: string): Promise<void> {
       throw new Error(err.error || 'Erro ao baixar o DANFE');
     }
     const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
+    // Garante o tipo application/pdf mesmo que a resposta venha sem ele — sem
+    // isso o navegador tende a baixar o arquivo em vez de exibir na aba.
+    const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+    const url = URL.createObjectURL(pdfBlob);
 
-    if (janela) {
+    if (janela && !janela.closed) {
       janela.location.href = url;
     } else {
-      // Popup bloqueado pelo navegador: cai para download do arquivo.
+      // Popup bloqueado: um link com target=_blank costuma ser permitido
+      // pelos bloqueadores (ao contrário de window.open). Sem `download`,
+      // o navegador abre o PDF numa nova aba em vez de salvar.
       const a = document.createElement('a');
       a.href = url;
-      a.download = `danfe-${notaFiscalId}.pdf`;
+      a.target = '_blank';
+      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       a.remove();
