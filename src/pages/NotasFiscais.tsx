@@ -53,7 +53,24 @@ export default function NotasFiscais() {
       .limit(500);
     if (statusFiltro !== 'all') query = query.eq('status', statusFiltro as NotaFiscalStatus);
     const { data } = await query;
-    setNotas((data as any[]) || []);
+    const rows = (data as NotaFiscalRow[]) || [];
+
+    // Cada "Tentar novamente" cria uma nota nova; as tentativas com erro ficam para trás.
+    // Esconde o erro quando a mesma venda já tem outra nota que não é erro (emitida,
+    // em processamento ou cancelada), para a lista refletir o estado real da venda.
+    const erros = rows.filter(n => n.status === 'error');
+    const comandaIds = [...new Set(erros.map(n => n.comanda_id).filter((id): id is string => !!id))];
+    const entregaIds = [...new Set(erros.map(n => n.entrega_id).filter((id): id is string => !!id))];
+    const resolvidas = new Set<string>();
+    if (comandaIds.length) {
+      const { data: r } = await supabase.from('notas_fiscais').select('comanda_id').in('comanda_id', comandaIds).neq('status', 'error');
+      r?.forEach(x => x.comanda_id && resolvidas.add(x.comanda_id));
+    }
+    if (entregaIds.length) {
+      const { data: r } = await supabase.from('notas_fiscais').select('entrega_id').in('entrega_id', entregaIds).neq('status', 'error');
+      r?.forEach(x => x.entrega_id && resolvidas.add(x.entrega_id));
+    }
+    setNotas(rows.filter(n => n.status !== 'error' || !resolvidas.has((n.comanda_id || n.entrega_id)!)));
     setLoading(false);
   }, [dateFrom, dateTo, statusFiltro]);
 

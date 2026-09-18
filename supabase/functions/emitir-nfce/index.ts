@@ -143,7 +143,9 @@ Deno.serve(async (req) => {
       console.log("Notaas /nfe/emitir response", resp.status, rawText);
 
       if (!resp.ok) {
-        const erro_mensagem = respBody?.error?.message || respBody?.message || rawText || `Erro ${resp.status} na Notaas`;
+        const erro_mensagem =
+          (typeof respBody?.error === "string" ? respBody.error : respBody?.error?.message) ||
+          respBody?.message || rawText || `Erro ${resp.status} na Notaas`;
         await supabaseAdmin.from("notas_fiscais").update({ status: "error", erro_mensagem }).eq("id", notaFiscal.id);
         return json({ error: erro_mensagem }, 502);
       }

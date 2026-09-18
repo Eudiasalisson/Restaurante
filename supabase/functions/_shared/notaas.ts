@@ -51,6 +51,23 @@ export function validarItensFiscais(itens: ComandaItemFiscal[]): string | null {
   return null;
 }
 
+// O schema XML da NF-e só aceita caracteres Latin-1 (U+0020–U+00FF) em textos como
+// xProd/xNome. Travessão "–", aspas curvas, reticências etc. (comuns em nomes de
+// produtos) fazem a Sefaz rejeitar com "Falha no schema XML". Troca por equivalentes
+// ASCII e descarta o que sobrar fora do intervalo. Limite de 120 caracteres do xProd.
+export function sanitizarTextoFiscal(texto: string): string {
+  return texto
+    .normalize("NFC")
+    .replace(/[‐-―−]/g, "-")
+    .replace(/[‘’‚′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/…/g, "...")
+    .replace(/\s+/g, " ")
+    .replace(/[^ -ÿ]/g, "")
+    .trim()
+    .slice(0, 120);
+}
+
 export function montarPayloadNfce(params: {
   itens: ComandaItemFiscal[];
   pagamentos: { forma: string; valor: number }[];
@@ -66,7 +83,7 @@ export function montarPayloadNfce(params: {
     const cst = codigoTributario?.length === 2 ? codigoTributario : undefined;
 
     return {
-      descricao: item.nome,
+      descricao: sanitizarTextoFiscal(item.nome) || "ITEM",
       ncm: item.ncm,
       cfop: item.cfop,
       quantidade: item.quantidade,
@@ -112,7 +129,7 @@ export function montarPayloadNfce(params: {
   // inteiro se dest.nome faltar (mín. 2 caracteres), fazendo a nota sair como
   // "consumidor não identificado"; por isso só monta dest com CPF de 11
   // dígitos E nome válido — caso contrário emite anônima de propósito.
-  const nomeDest = (params.clienteNome ?? "").trim();
+  const nomeDest = sanitizarTextoFiscal(params.clienteNome ?? "");
   if (params.clienteCpf && /^\d{11}$/.test(params.clienteCpf) && nomeDest.length >= 2) {
     payload.dest = {
       cpf: params.clienteCpf,
