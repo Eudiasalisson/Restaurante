@@ -34,6 +34,25 @@ const COLORS = [
   'hsl(200, 75%, 52%)',
 ];
 
+// O PostgREST (API da Supabase) devolve no máximo 1000 linhas por requisição.
+// comanda_itens/entrega_itens/pagamentos já passam disso no histórico do
+// restaurante — sem paginar, consultas simples cortam dados silenciosamente
+// (as linhas mais recentes somem, pois a API retorna da mais antiga em diante).
+// Busca em páginas de 1000 até a API devolver menos que isso.
+async function fetchAllRows<T>(buildQuery: () => any): Promise<T[]> {
+  const PAGE_SIZE = 1000;
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    all.push(...(data as T[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 export default function Relatorios() {
   const [dateFrom, setDateFrom] = useState<Date>(new Date());
   const [dateTo, setDateTo] = useState<Date>(new Date());
@@ -68,30 +87,25 @@ export default function Relatorios() {
     const from = startOfDay(dateFrom).toISOString();
     const to = endOfDay(dateTo).toISOString();
 
-    const [comandasRes, entregasRes, pagRes, ciRes, eiRes, produtosRes, clientesRes] = await Promise.all([
-      supabase.from('comandas').select('*').gte('opened_at', from).lte('opened_at', to),
-      supabase.from('entregas').select('*, enderecos_cliente(bairro)').gte('opened_at', from).lte('opened_at', to),
-      supabase.from('pagamentos').select('*').gte('created_at', from).lte('created_at', to),
-      supabase.from('comanda_itens').select('*, produtos(nome), comandas!inner(opened_at)').neq('status', 'cancelado'),
-      supabase.from('entrega_itens').select('*, produtos(nome), entregas!inner(opened_at)').neq('status', 'cancelado'),
+    const [comandasData, entregasData, pagamentosData, comandaItensData, entregaItensData, produtosRes, clientesRes] = await Promise.all([
+      fetchAllRows<any>(() => supabase.from('comandas').select('*').gte('opened_at', from).lte('opened_at', to)),
+      fetchAllRows<any>(() => supabase.from('entregas').select('*, enderecos_cliente(bairro)').gte('opened_at', from).lte('opened_at', to)),
+      fetchAllRows<any>(() => supabase.from('pagamentos').select('*').gte('created_at', from).lte('created_at', to)),
+      // Filtro de data direto na consulta (via join com comandas/entregas), não mais
+      // em JS depois de trazer a tabela inteira — era isso que cortava vendas recentes.
+      fetchAllRows<any>(() => supabase.from('comanda_itens').select('*, produtos(nome), comandas!inner(opened_at)').neq('status', 'cancelado').gte('comandas.opened_at', from).lte('comandas.opened_at', to)),
+      fetchAllRows<any>(() => supabase.from('entrega_itens').select('*, produtos(nome), entregas!inner(opened_at)').neq('status', 'cancelado').gte('entregas.opened_at', from).lte('entregas.opened_at', to)),
       supabase.from('produtos').select('id, nome').eq('ativo', true).order('nome'),
       supabase.from('clientes').select('id, nome').order('nome'),
     ]);
 
-    setComandas(comandasRes.data || []);
-    setEntregas(entregasRes.data || []);
-    setPagamentos(pagRes.data || []);
+    setComandas(comandasData);
+    setEntregas(entregasData);
+    setPagamentos(pagamentosData);
     setProdutos(produtosRes.data || []);
     setClientes(clientesRes.data || []);
-
-    const filterByDate = (items: any[]) =>
-      items.filter(i => {
-        const d = i.comandas?.opened_at || i.entregas?.opened_at;
-        return d && d >= from && d <= to;
-      });
-
-    setComandaItens(filterByDate(ciRes.data || []));
-    setEntregaItens(filterByDate(eiRes.data || []));
+    setComandaItens(comandaItensData);
+    setEntregaItens(entregaItensData);
     setLoading(false);
   };
 
