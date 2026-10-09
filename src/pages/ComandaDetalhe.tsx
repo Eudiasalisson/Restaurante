@@ -716,6 +716,37 @@ export default function ComandaDetalhe() {
                       size="sm"
                       variant="outline"
                       onClick={async () => {
+                        // Reimpressão de conferência: busca tudo direto do banco e nunca
+                        // altera status, baixa estoque ou grava histórico — ao contrário do
+                        // "Enviar Cozinha", que marca os itens como enviados.
+                        const { data: todosItens } = await supabase
+                          .from('comanda_itens')
+                          .select('*, produtos(nome, descricao, enviar_cozinha)')
+                          .eq('comanda_id', id!)
+                          .order('added_at', { ascending: true });
+                        const cozinhaItensCompleta = ((todosItens as any[]) || itens).filter(
+                          (i: any) => i.produtos?.enviar_cozinha !== false
+                        );
+                        const blob = await gerarCupomCozinha({
+                          mesaNumero: comanda.mesas?.numero ?? null,
+                          garcomNome: comanda.funcionarios?.nome ?? null,
+                          clienteNome: comanda.clientes?.nome ?? null,
+                          openedAt: comanda.opened_at,
+                          itens: cozinhaItensCompleta,
+                          empresa: empresa || undefined,
+                        });
+                        setPdfBlob(blob);
+                        setPdfTitle('Comanda Completa');
+                        setPdfFileName(`comanda-completa-${Date.now()}.pdf`);
+                        setPreviewType('cozinha');
+                      }}
+                    >
+                      <Printer className="h-4 w-4 mr-1" /> Comanda Completa
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
                         const blob = await gerarCupomComanda({
                           mesaNumero: comanda.mesas?.numero ?? null,
                           garcomNome: comanda.funcionarios?.nome ?? null,

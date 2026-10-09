@@ -689,6 +689,34 @@ export default function EntregaDetalhe() {
                       <SendHorizonal className="h-4 w-4 mr-1" /> Enviar Cozinha
                     </Button>
                     <Button size="sm" variant="outline" onClick={async () => {
+                      // Reimpressão de conferência: busca tudo direto do banco e nunca
+                      // altera status, baixa estoque ou grava histórico — ao contrário do
+                      // "Enviar Cozinha", que marca os itens como enviados.
+                      const { data: todosItens } = await supabase
+                        .from('entrega_itens')
+                        .select('*, produtos(nome, descricao)')
+                        .eq('entrega_id', id!)
+                        .order('id');
+                      const itensCompletos = ((todosItens as any[]) || itens).filter((i: any) => i.status !== 'cancelado');
+                      const blob = await gerarCupomEntrega({
+                        clienteNome: entrega.clientes?.nome ?? null,
+                        enderecoStr,
+                        funcionarioNome: entrega.funcionarios?.nome ?? null,
+                        openedAt: entrega.opened_at,
+                        itens: itensCompletos,
+                        empresa: empresa || undefined,
+                        formaPagamento: entrega.forma_pagamento ?? null,
+                        total,
+                        numeroPedido: entrega.numero ?? null,
+                      });
+                      setPdfBlob(blob);
+                      setPdfTitle('Pedido Completo');
+                      setPdfFileName(`pedido-completo-${Date.now()}.pdf`);
+                      setPreviewType('cupom');
+                    }}>
+                      <Printer className="h-4 w-4 mr-1" /> Pedido Completo
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
                       const blob = await gerarComprovanteEntrega({
                         clienteNome: entrega.clientes?.nome ?? null,
                         clienteTelefone: entrega.clientes?.telefone ?? null,

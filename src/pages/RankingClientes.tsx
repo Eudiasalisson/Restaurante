@@ -16,6 +16,23 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 
+// O PostgREST (API da Supabase) devolve no máximo 1000 linhas por requisição.
+// "Todo Período" busca clientes/comandas/entregas sem filtro de data, e entregas já
+// passa de 1000 linhas — sem paginar, a resposta vem cortada e o ranking fica errado.
+async function fetchAllRows<T>(buildQuery: () => any): Promise<T[]> {
+  const PAGE_SIZE = 1000;
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    all.push(...(data as T[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 type PeriodFilter = 'all' | 'week' | 'month' | 'year' | 'custom';
 
 interface ClienteRanking {
@@ -70,24 +87,28 @@ export default function RankingClientes() {
     }
 
     // Fetch clients
-    const { data: clientes } = await supabase.from('clientes').select('id, nome');
-    if (!clientes || clientes.length === 0) { setRanking([]); setLoading(false); return; }
+    const clientes = await fetchAllRows<{ id: string; nome: string }>(() => supabase.from('clientes').select('id, nome'));
+    if (clientes.length === 0) { setRanking([]); setLoading(false); return; }
 
     // Fetch comandas with items
-    let comandasQuery = supabase.from('comandas').select('id, cliente_id, status').not('cliente_id', 'is', null);
-    if (fromDate) comandasQuery = comandasQuery.gte('opened_at', fromDate);
-    if (toDate) comandasQuery = comandasQuery.lte('opened_at', toDate);
-    const { data: comandas } = await comandasQuery;
+    const comandas = await fetchAllRows<{ id: string; cliente_id: string; status: string }>(() => {
+      let q = supabase.from('comandas').select('id, cliente_id, status').not('cliente_id', 'is', null);
+      if (fromDate) q = q.gte('opened_at', fromDate);
+      if (toDate) q = q.lte('opened_at', toDate);
+      return q;
+    });
 
     // Fetch entregas with items
-    let entregasQuery = supabase.from('entregas').select('id, cliente_id, status').not('cliente_id', 'is', null);
-    if (fromDate) entregasQuery = entregasQuery.gte('opened_at', fromDate);
-    if (toDate) entregasQuery = entregasQuery.lte('opened_at', toDate);
-    const { data: entregas } = await entregasQuery;
+    const entregas = await fetchAllRows<{ id: string; cliente_id: string; status: string }>(() => {
+      let q = supabase.from('entregas').select('id, cliente_id, status').not('cliente_id', 'is', null);
+      if (fromDate) q = q.gte('opened_at', fromDate);
+      if (toDate) q = q.lte('opened_at', toDate);
+      return q;
+    });
 
     // Get all comanda IDs and entrega IDs
-    const comandaIds = (comandas || []).filter(c => c.status === 'fechada').map(c => c.id);
-    const entregaIds = (entregas || []).filter(e => e.status === 'entregue').map(e => e.id);
+    const comandaIds = comandas.filter(c => c.status === 'fechada').map(c => c.id);
+    const entregaIds = entregas.filter(e => e.status === 'entregue').map(e => e.id);
 
     // Fetch items
     let comandaItens: any[] = [];
@@ -114,9 +135,9 @@ export default function RankingClientes() {
 
     // Map comanda_id -> cliente_id
     const comandaClienteMap: Record<string, string> = {};
-    (comandas || []).forEach(c => { if (c.cliente_id) comandaClienteMap[c.id] = c.cliente_id; });
+    comandas.forEach(c => { if (c.cliente_id) comandaClienteMap[c.id] = c.cliente_id; });
     const entregaClienteMap: Record<string, string> = {};
-    (entregas || []).forEach(e => { if (e.cliente_id) entregaClienteMap[e.id] = e.cliente_id; });
+    entregas.forEach(e => { if (e.cliente_id) entregaClienteMap[e.id] = e.cliente_id; });
 
     // Build ranking
     const clienteMap: Record<string, ClienteRanking> = {};
