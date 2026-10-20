@@ -58,3 +58,35 @@ export async function baixarDanfe(notaFiscalId: string): Promise<void> {
     throw e;
   }
 }
+
+// Baixa o .zip com os XMLs de NFC-e autorizadas/canceladas do período (para
+// entrega mensal ao contador). A Notaas não tem exportação em lote — a function
+// busca XML nota a nota usando os dados já salvos no nosso banco.
+export async function exportarXmlsMes(fromIso: string, toIso: string): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exportar-xmls-mes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${sessionData.session?.access_token}`,
+    },
+    body: JSON.stringify({ from: fromIso, to: toIso }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || 'Erro ao exportar os XMLs do período');
+  }
+  const blob = await resp.blob();
+  const disposition = resp.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const fileName = match?.[1] || `xmls-${fromIso.slice(0, 7)}.zip`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

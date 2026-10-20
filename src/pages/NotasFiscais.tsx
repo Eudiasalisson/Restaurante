@@ -12,9 +12,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { usePagination } from '@/hooks/usePagination';
 import { TablePagination } from '@/components/TablePagination';
-import { baixarDanfe, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
+import { baixarDanfe, exportarXmlsMes, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
 import { toast } from 'sonner';
-import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle, FileArchive } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 
 interface NotaFiscalRow {
@@ -39,6 +39,7 @@ export default function NotasFiscais() {
   const [notas, setNotas] = useState<NotaFiscalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [baixando, setBaixando] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
 
   const fetchNotas = useCallback(async () => {
     setLoading(true);
@@ -91,6 +92,23 @@ export default function NotasFiscais() {
     () => notas.filter(n => n.status === 'issued').reduce((s, n) => s + (n.valor_total || 0), 0),
     [notas]
   );
+
+  // Exporta o .zip com os XMLs (autorizadas + canceladas) do período selecionado
+  // na tela — uso mensal para enviar ao contador. Período inclusivo do primeiro
+  // ao último dia escolhido, mesmo intervalo que a listagem já usa.
+  const handleExportarXmls = async () => {
+    setExportando(true);
+    try {
+      const from = startOfDay(dateFrom).toISOString();
+      const to = endOfDay(dateTo).toISOString();
+      await exportarXmlsMes(from, to);
+      toast.success('XMLs exportados! Confira o _resumo.txt dentro do zip.');
+    } catch (e) {
+      toast.error((e as Error).message || 'Erro ao exportar os XMLs do período');
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const handleVerDanfe = async (notaId: string) => {
     setBaixando(notaId);
@@ -155,6 +173,10 @@ export default function NotasFiscais() {
         <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDateFrom(startOfDay(new Date())); setDateTo(new Date()); }}>Hoje</Button>
         <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDateFrom(subDays(new Date(), 7)); setDateTo(new Date()); }}>7 dias</Button>
         <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDateFrom(startOfMonth(new Date())); setDateTo(new Date()); }}>Mês</Button>
+        <Button size="sm" variant="outline" className="text-xs" onClick={handleExportarXmls} disabled={exportando} title="Baixa um .zip com os XMLs das notas autorizadas e canceladas do período selecionado">
+          {exportando ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileArchive className="h-3.5 w-3.5 mr-1.5" />}
+          Exportar XMLs
+        </Button>
       </div>
 
       {loading ? (
