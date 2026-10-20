@@ -12,9 +12,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { usePagination } from '@/hooks/usePagination';
 import { TablePagination } from '@/components/TablePagination';
-import { baixarDanfe, exportarXmlsMes, baixarRelatorioVendasMes, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
+import { baixarDanfe, exportarXmlsMes, baixarRelatorioVendasMes, gerarSintegraMes, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
 import { toast } from 'sonner';
-import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle, FileArchive, FileSpreadsheet } from 'lucide-react';
+import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle, FileArchive, FileSpreadsheet, FileCode } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 
 interface NotaFiscalRow {
@@ -41,6 +41,7 @@ export default function NotasFiscais() {
   const [baixando, setBaixando] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
   const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
+  const [gerandoSintegra, setGerandoSintegra] = useState(false);
 
   const fetchNotas = useCallback(async () => {
     setLoading(true);
@@ -127,6 +128,21 @@ export default function NotasFiscais() {
     }
   };
 
+  // Gera o Sintegra (registros 10/11/50/54/75/90) do período selecionado na tela.
+  const handleGerarSintegra = async () => {
+    setGerandoSintegra(true);
+    try {
+      const from = startOfDay(dateFrom).toISOString();
+      const to = endOfDay(dateTo).toISOString();
+      await gerarSintegraMes(from, to);
+      toast.success('Sintegra gerado! Leia o DUVIDAS-SINTEGRA.md dentro do zip antes de enviar ao contador.');
+    } catch (e) {
+      toast.error((e as Error).message || 'Erro ao gerar o Sintegra do período');
+    } finally {
+      setGerandoSintegra(false);
+    }
+  };
+
   const handleVerDanfe = async (notaId: string) => {
     setBaixando(notaId);
     try {
@@ -197,6 +213,10 @@ export default function NotasFiscais() {
         <Button size="sm" variant="outline" className="text-xs" onClick={handleRelatorioVendas} disabled={gerandoRelatorio} title="Gera um .xlsx com vendas x notas do período selecionado, para conferência">
           {gerandoRelatorio ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />}
           Relatório de Vendas
+        </Button>
+        <Button size="sm" variant="outline" className="text-xs" onClick={handleGerarSintegra} disabled={gerandoSintegra} title="Gera o arquivo Sintegra (registros 10/11/50/54/75/90) do período selecionado">
+          {gerandoSintegra ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileCode className="h-3.5 w-3.5 mr-1.5" />}
+          Sintegra
         </Button>
       </div>
 

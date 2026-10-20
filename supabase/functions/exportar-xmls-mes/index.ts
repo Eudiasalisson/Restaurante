@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { zipSync, strToU8 } from "https://esm.sh/fflate@0.8.2";
-import { corsHeaders, NOTAAS_BASE_URL, notaasHeaders } from "../_shared/notaas.ts";
+import { corsHeaders, fetchXmlComRetry } from "../_shared/notaas.ts";
 
 // Exporta, para um período, um .zip com os XMLs de todas as NFC-e autorizadas e
 // canceladas. A Notaas não oferece exportação em lote (confirmado com o suporte
@@ -11,38 +11,6 @@ import { corsHeaders, NOTAAS_BASE_URL, notaasHeaders } from "../_shared/notaas.t
 // "Inutilizadas": não geramos essa pasta. A Notaas não expõe esse conceito pela
 // API (a numeração é 100% gerida por eles) e nosso banco não tem esse status.
 // Ver DUVIDAS-SINTEGRA.md.
-
-async function fetchXmlComRetry(
-  invoiceId: string,
-  type?: "cancel",
-): Promise<{ ok: true; xml: string } | { ok: false; error: string }> {
-  const url = `${NOTAAS_BASE_URL}/nfe/invoices/${invoiceId}/xml${type ? `?type=${type}` : ""}`;
-  let lastError = "";
-  const maxTentativas = 5;
-  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    try {
-      const resp = await fetch(url, { headers: notaasHeaders() });
-      if (resp.ok) {
-        const xml = await resp.text();
-        return { ok: true, xml };
-      }
-      lastError = `HTTP ${resp.status}: ${(await resp.text().catch(() => "")).slice(0, 200)}`;
-      // 429 é a própria Notaas pedindo pra esperar — respeita Retry-After quando
-      // vier, senão recua de forma bem mais generosa que os outros erros (que são
-      // falhas transitórias normais, não um limite sendo estourado de propósito).
-      if (resp.status === 429 && tentativa < maxTentativas) {
-        const retryAfterHeader = resp.headers.get("Retry-After");
-        const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : NaN;
-        await new Promise((r) => setTimeout(r, Number.isFinite(retryAfterMs) ? retryAfterMs : 3000 * tentativa));
-        continue;
-      }
-    } catch (e) {
-      lastError = (e as Error).message;
-    }
-    if (tentativa < maxTentativas) await new Promise((r) => setTimeout(r, 500 * tentativa));
-  }
-  return { ok: false, error: lastError };
-}
 
 function sanitizeFileName(s: string): string {
   return s.replace(/[^\w.-]+/g, "-");

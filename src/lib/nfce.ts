@@ -91,6 +91,38 @@ export async function exportarXmlsMes(fromIso: string, toIso: string): Promise<v
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+// Gera o Sintegra do período (registros 10/11/50/54/75/90) e baixa um .zip com
+// o .txt, o DUVIDAS-SINTEGRA.md (pontos a confirmar com o contador) e um
+// _resumo.txt de conferência própria.
+export async function gerarSintegraMes(fromIso: string, toIso: string): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gerar-sintegra-mes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${sessionData.session?.access_token}`,
+    },
+    body: JSON.stringify({ from: fromIso, to: toIso }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || 'Erro ao gerar o Sintegra do período');
+  }
+  const blob = await resp.blob();
+  const disposition = resp.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const fileName = match?.[1] || `sintegra-${fromIso.slice(0, 7)}.zip`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 // Baixa o relatório de vendas (.xlsx) do período, com 3 abas: todas as vendas,
 // vendas sem nota autorizada e notas emitidas sem venda correspondente — para
 // o contador conferir vendas x notas no fechamento mensal.
