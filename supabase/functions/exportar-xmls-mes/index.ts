@@ -18,7 +18,8 @@ async function fetchXmlComRetry(
 ): Promise<{ ok: true; xml: string } | { ok: false; error: string }> {
   const url = `${NOTAAS_BASE_URL}/nfe/invoices/${invoiceId}/xml${type ? `?type=${type}` : ""}`;
   let lastError = "";
-  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+  const maxTentativas = 5;
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
     try {
       const resp = await fetch(url, { headers: notaasHeaders() });
       if (resp.ok) {
@@ -26,10 +27,19 @@ async function fetchXmlComRetry(
         return { ok: true, xml };
       }
       lastError = `HTTP ${resp.status}: ${(await resp.text().catch(() => "")).slice(0, 200)}`;
+      // 429 é a própria Notaas pedindo pra esperar — respeita Retry-After quando
+      // vier, senão recua de forma bem mais generosa que os outros erros (que são
+      // falhas transitórias normais, não um limite sendo estourado de propósito).
+      if (resp.status === 429 && tentativa < maxTentativas) {
+        const retryAfterHeader = resp.headers.get("Retry-After");
+        const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : NaN;
+        await new Promise((r) => setTimeout(r, Number.isFinite(retryAfterMs) ? retryAfterMs : 3000 * tentativa));
+        continue;
+      }
     } catch (e) {
       lastError = (e as Error).message;
     }
-    if (tentativa < 3) await new Promise((r) => setTimeout(r, 500 * tentativa));
+    if (tentativa < maxTentativas) await new Promise((r) => setTimeout(r, 500 * tentativa));
   }
   return { ok: false, error: lastError };
 }
