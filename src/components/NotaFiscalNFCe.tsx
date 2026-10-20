@@ -296,6 +296,22 @@ export function NotaFiscalNFCe({ comandaId, entregaId, podeEmitir, clienteId, cl
             </Button>
           </div>
         )}
+
+        {/* Cancelamento também é assíncrono na Sefaz: o botão "Cancelar" marca o
+            status local assim que a Notaas aceita o pedido, antes da confirmação.
+            Sem este botão não havia como corrigir o registro local se a Sefaz
+            nunca confirmasse (ou confirmasse diferente do que foi pedido). */}
+        {notaFiscal?.status === 'cancelled' && (
+          <div className="space-y-1.5">
+            {notaFiscal.chave_acesso && (
+              <p className="text-[10px] text-muted-foreground font-mono break-all">{notaFiscal.chave_acesso}</p>
+            )}
+            <Button variant="outline" size="sm" className="w-full" onClick={() => consultarStatus(notaFiscal.id)} disabled={consultando}>
+              {consultando ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+              Verificar status
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={cancelModal} onOpenChange={setCancelModal}>
