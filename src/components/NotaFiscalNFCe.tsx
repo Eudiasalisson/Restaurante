@@ -70,7 +70,12 @@ export function NotaFiscalNFCe({ comandaId, entregaId, podeEmitir, clienteId, cl
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (error) throw error;
-      if (data?.notaFiscal) setNotaFiscal(data.notaFiscal);
+      if (data?.notaFiscal) {
+        setNotaFiscal(data.notaFiscal);
+        // Sem isso, uma consulta que confirma o status (sem mudar nada) parecia
+        // não ter feito nada — o usuário clicava e não via nenhum retorno.
+        if (!silent) toast.success(`Status confirmado: ${NOTA_FISCAL_STATUS_CONFIG[data.notaFiscal.status as NotaFiscalStatus].label}`);
+      }
       return data?.notaFiscal as NotaFiscal | undefined;
     } catch {
       if (!silent) toast.error('Erro ao consultar status da NFC-e');
