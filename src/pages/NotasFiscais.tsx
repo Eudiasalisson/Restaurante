@@ -12,9 +12,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { usePagination } from '@/hooks/usePagination';
 import { TablePagination } from '@/components/TablePagination';
-import { baixarDanfe, exportarXmlsMes, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
+import { baixarDanfe, exportarXmlsMes, baixarRelatorioVendasMes, NotaFiscalStatus, NOTA_FISCAL_STATUS_CONFIG } from '@/lib/nfce';
 import { toast } from 'sonner';
-import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle, FileArchive } from 'lucide-react';
+import { CalendarIcon, FileText, ExternalLink, Eye, Loader2, Search, AlertTriangle, FileArchive, FileSpreadsheet } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns';
 
 interface NotaFiscalRow {
@@ -40,6 +40,7 @@ export default function NotasFiscais() {
   const [loading, setLoading] = useState(true);
   const [baixando, setBaixando] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
+  const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
 
   const fetchNotas = useCallback(async () => {
     setLoading(true);
@@ -110,6 +111,22 @@ export default function NotasFiscais() {
     }
   };
 
+  // Gera o relatório de vendas (.xlsx) do mesmo período selecionado na tela —
+  // vendas x notas, para o contador conferir no fechamento mensal.
+  const handleRelatorioVendas = async () => {
+    setGerandoRelatorio(true);
+    try {
+      const from = startOfDay(dateFrom).toISOString();
+      const to = endOfDay(dateTo).toISOString();
+      await baixarRelatorioVendasMes(from, to);
+      toast.success('Relatório de vendas gerado! Confira a aba "Vendas do período" para a conferência de totais.');
+    } catch (e) {
+      toast.error((e as Error).message || 'Erro ao gerar o relatório de vendas do período');
+    } finally {
+      setGerandoRelatorio(false);
+    }
+  };
+
   const handleVerDanfe = async (notaId: string) => {
     setBaixando(notaId);
     try {
@@ -176,6 +193,10 @@ export default function NotasFiscais() {
         <Button size="sm" variant="outline" className="text-xs" onClick={handleExportarXmls} disabled={exportando} title="Baixa um .zip com os XMLs das notas autorizadas e canceladas do período selecionado">
           {exportando ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileArchive className="h-3.5 w-3.5 mr-1.5" />}
           Exportar XMLs
+        </Button>
+        <Button size="sm" variant="outline" className="text-xs" onClick={handleRelatorioVendas} disabled={gerandoRelatorio} title="Gera um .xlsx com vendas x notas do período selecionado, para conferência">
+          {gerandoRelatorio ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />}
+          Relatório de Vendas
         </Button>
       </div>
 
